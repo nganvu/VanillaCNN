@@ -99,3 +99,26 @@ def convolution(in_img, kernel, out_img):
 # Check for syntatical correctness (not logical correctness yet).
 I = x_train[0]
 convolution(I, K1[0][0], C1[0])
+
+def pooling(in_img, out_img):
+	# Make sure the side length of output is half the side length of the input.
+	# Assume the side length of the input is even.
+	xo_length, yo_length = out_img.shape
+	xi_length, yi_length = in_img.shape
+	assert(xi_length % 2 == 0 and yi_length % 2 == 0)
+	assert(xi_length == 2 * xo_length)
+	assert(yi_length == 2 * yo_length)
+
+	# Iterate through the output image.
+	for i in range(xo_length):
+		for j in range(yo_length):
+			out_img[i][j] = 0.25 * (in_img[2*i    ][2*j    ] + 
+															in_img[2*i + 1][2*j    ] + 
+															in_img[2*i    ][2*j + 1] +
+															in_img[2*i + 1][2*j + 1])
+
+# Check for syntatical correctness (not logical correctness yet).
+pooling(C1[0], S1[0])
+
+
+
