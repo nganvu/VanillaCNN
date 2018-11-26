@@ -66,3 +66,36 @@ B = np.zeros(10)
 
 # 10 output classes.
 Y = np.zeros(10)
+
+def convolution(in_img, kernel, out_img):
+	# Assume the kernel is square and has an odd side length.
+	u_length, v_length = kernel.shape
+	assert(u_length == v_length and u_length % 2 == 1)
+
+	# Make sure the shape of output matches the convolution of input and kernel.
+	# Only keep the parts of input that are computed without zero-padded edges.
+	xo_length, yo_length = out_img.shape
+	xi_length, yi_length = in_img.shape
+	assert(xi_length == xo_length + u_length - 1)
+	assert(yi_length == yo_length + v_length - 1)
+
+	u_margin = v_margin = int(u_length / 2)
+	(u_lbound, u_ubound) = (v_lbound, v_ubound) = (-u_margin, u_margin)
+
+	# Iterate through output image.
+	for i in range(xo_length):
+		for j in range(yo_length):
+			# Iterate through kernel.
+			for u in range(u_lbound, u_ubound):
+				for v in range(v_lbound, v_ubound):
+					# Ignore parts that require zero-padded edges.
+					if ((i - u < 0 or i - u >= xi_length) or
+						(j - v < 0 or j - v >= yi_length)):
+						continue
+					else:
+						out_img[i][j] = in_img[i - u][j - v] * \
+							kernel[u + u_margin][v + v_margin]
+
+# Check for syntatical correctness (not logical correctness yet).
+I = x_train[0]
+convolution(I, K1[0][0], C1[0])
