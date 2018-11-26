@@ -1,0 +1,68 @@
+#!/usr/bin/python3
+
+import numpy as np
+
+# Load MNISt dataset.
+from keras.datasets import mnist
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# Scale a set uniformly sampled from [0, 1] to [-bound, bound].
+def scale_to_bound(arr, arr_bound):
+	return arr * 2 * arr_bound - arr_bound
+
+#################################
+##### Convolutional Layer 1 #####
+#################################
+# (1 x 6) kernels of size (5 x 5).
+K1 = np.random.rand(1, 6, 5, 5)
+K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
+scale_to_bound(K1, K1_bound)
+
+# 6 biases.
+B1 = np.zeros(6)
+
+# 6 convolution outputs of size (24 x 24).
+C1 = np.zeros((6, 24, 24))
+
+#################################
+#####    Pooling Layer 1    #####
+#################################
+# 6 sampling outputs of size (12 x 12).
+S1 = np.zeros((6, 12, 12))
+
+#################################
+##### Convolutional Layer 2 #####
+#################################
+# (6 x 12) kernels of size (5 x 5).
+K2 = np.random.rand(6, 12, 5, 5)
+K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
+scale_to_bound(K2, K2_bound)
+
+# 12 biases.
+B2 = np.random.rand(12)
+
+# 12 convolution outputs of size (8 x 8).
+C2 = np.zeros((12, 8, 8))
+
+#################################
+#####    Pooling Layer 2    #####
+#################################
+# 12 sampling outputs of size (4 x 4).
+S2 = np.zeros((12, 4, 4))
+
+#################################
+##### Fully Connected Layer #####
+#################################
+# Vectorization of 12 matrices of size (4 x 4) to a vector of size 192.
+F = np.zeros(192)
+
+# 10 weights of size 192.
+W = np.random.rand(10, 192)
+W_bound = np.sqrt(6 / (192 + 10))
+scale_to_bound(W, W_bound)
+
+# 10 biases.
+B = np.zeros(10)
+
+# 10 output classes.
+Y = np.zeros(10)
