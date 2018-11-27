@@ -16,7 +16,7 @@ def scale_to_bound(arr, arr_bound):
 # (1 x 6) kernels of size (5 x 5).
 K1 = np.random.rand(1, 6, 5, 5)
 K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
-scale_to_bound(K1, K1_bound)
+K1 = scale_to_bound(K1, K1_bound)
 
 # 6 biases.
 B1 = np.zeros(6)
@@ -36,7 +36,7 @@ S1 = np.zeros((6, 12, 12))
 # (6 x 12) kernels of size (5 x 5).
 K2 = np.random.rand(6, 12, 5, 5)
 K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
-scale_to_bound(K2, K2_bound)
+K2 = scale_to_bound(K2, K2_bound)
 
 # 12 biases.
 B2 = np.random.rand(12)
@@ -59,10 +59,10 @@ F = np.zeros(192)
 # 10 weights of size 192.
 W = np.random.rand(10, 192)
 W_bound = np.sqrt(6 / (192 + 10))
-scale_to_bound(W, W_bound)
+W = scale_to_bound(W, W_bound)
 
 # 10 biases.
-B = np.zeros(10)
+B = np.zeros((10, 1))
 
 # 10 output classes.
 Y = np.zeros(10)
@@ -134,6 +134,12 @@ def vectorize(mats):
 def unvectorize(vec):
 	return vec.reshape(S2.shape)
 
+#################################
+#####    Fully Connected    #####
+#################################
+def fully_connected(F, W, B):
+	return sigmoid(np.dot(W, F) + B)
+
 # Check for syntatical correctness (not logical correctness yet).
 I = x_train[0]
 
@@ -161,8 +167,12 @@ for i in range(S2.shape[0]):
 print("Vectorization")
 F = vectorize(S2)
 print(F.shape)
-S2_new = unvectorize(F)
-print(S2_new.shape)
 
 # S2 should stay the same after vectorization and unvectorization.
+S2_new = unvectorize(F)
+print(S2_new.shape)
 print(np.all(np.equal(S2, S2_new)))
+
+print("Fully Connected")
+y = fully_connected(F, W, B)
+print(y)
