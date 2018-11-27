@@ -67,15 +67,18 @@ B = np.zeros(10)
 # 10 output classes.
 Y = np.zeros(10)
 
-def convolution(in_img, kernel, out_img):
+#################################
+#####      Convolution      #####
+#################################
+def convolution(in_mat, kernel, out_mat):
 	# Assume the kernel is square and has an odd side length.
 	u_length, v_length = kernel.shape
 	assert(u_length == v_length and u_length % 2 == 1)
 
 	# Make sure the shape of output matches the convolution of input and kernel.
 	# Only keep the parts of input that are computed without zero-padded edges.
-	xo_length, yo_length = out_img.shape
-	xi_length, yi_length = in_img.shape
+	xo_length, yo_length = out_mat.shape
+	xi_length, yi_length = in_mat.shape
 	assert(xi_length == xo_length + u_length - 1)
 	assert(yi_length == yo_length + v_length - 1)
 
@@ -93,18 +96,23 @@ def convolution(in_img, kernel, out_img):
 						(j - v < 0 or j - v >= yi_length)):
 						continue
 					else:
-						out_img[i][j] = in_img[i - u][j - v] * \
+						out_mat[i][j] = in_mat[i - u][j - v] * \
 							kernel[u + u_margin][v + v_margin]
 
-# Check for syntatical correctness (not logical correctness yet).
-I = x_train[0]
-convolution(I, K1[0][0], C1[0])
+#################################
+#####        Sigmoid        #####
+#################################
+def sigmoid(in_mat):
+	return 1 / (1 + np.exp(-in_mat))
 
-def pooling(in_img, out_img):
+#################################
+#####        Pooling        #####
+#################################
+def pooling(in_mat, out_mat):
 	# Make sure the side length of output is half the side length of the input.
 	# Assume the side length of the input is even.
-	xo_length, yo_length = out_img.shape
-	xi_length, yi_length = in_img.shape
+	xo_length, yo_length = out_mat.shape
+	xi_length, yi_length = in_mat.shape
 	assert(xi_length % 2 == 0 and yi_length % 2 == 0)
 	assert(xi_length == 2 * xo_length)
 	assert(yi_length == 2 * yo_length)
@@ -112,13 +120,30 @@ def pooling(in_img, out_img):
 	# Iterate through the output image.
 	for i in range(xo_length):
 		for j in range(yo_length):
-			out_img[i][j] = 0.25 * (in_img[2*i    ][2*j    ] + 
-															in_img[2*i + 1][2*j    ] + 
-															in_img[2*i    ][2*j + 1] +
-															in_img[2*i + 1][2*j + 1])
+			out_mat[i][j] = 0.25 * (in_mat[2*i    ][2*j    ] + 
+															in_mat[2*i + 1][2*j    ] + 
+															in_mat[2*i    ][2*j + 1] +
+															in_mat[2*i + 1][2*j + 1])
 
 # Check for syntatical correctness (not logical correctness yet).
-pooling(C1[0], S1[0])
+I = x_train[0]
 
+print("Convolution 1")
+for i in range(C1.shape[0]):
+	convolution(I, K1[0][i], C1[i])
+	C1[i] = sigmoid(C1[i] + B1[i])
 
+print("Pooling 1")
+for i in range(S1.shape[0]):
+	pooling(C1[i], S1[i])
+
+print("Convolution 2")
+for i in range(S1.shape[0]):
+	for j in range(C2.shape[0]): 
+		convolution(S1[i], K2[i][j], C2[j])
+		C2[j] = sigmoid(C2[j] + B2[j])
+
+print("Pooling 2")
+for i in range(S2.shape[0]):
+	pooling(C2[i], S2[i])
 
