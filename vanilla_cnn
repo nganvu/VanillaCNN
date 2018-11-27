@@ -12,14 +12,8 @@ def convert_to_one_hot(labels):
 	labels_vecs[np.arange(labels.size), labels] = 1
 	return labels_vecs
 
-print(y_train.shape)
-print(y_train[0])
-
 y_train = convert_to_one_hot(y_train)
 y_test = convert_to_one_hot(y_test)
-
-print(y_train.shape)
-print(y_train[0])
 
 # Scale a set uniformly sampled from [0, 1] to [-bound, bound].
 def scale_to_bound(arr, arr_bound):
@@ -34,7 +28,7 @@ K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
 K1 = scale_to_bound(K1, K1_bound)
 
 # 6 biases.
-B1 = np.zeros(6)
+B1 = np.zeros((6, 1))
 
 # 6 convolution outputs of size (24 x 24).
 C1 = np.zeros((6, 24, 24))
@@ -54,7 +48,7 @@ K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
 K2 = scale_to_bound(K2, K2_bound)
 
 # 12 biases.
-B2 = np.random.rand(12)
+B2 = np.zeros((12, 1))
 
 # 12 convolution outputs of size (8 x 8).
 C2 = np.zeros((12, 8, 8))
@@ -69,7 +63,7 @@ S2 = np.zeros((12, 4, 4))
 ##### Fully Connected Layer #####
 #################################
 # Vectorization of 12 matrices of size (4 x 4) to a vector of size 192.
-F = np.zeros(192)
+F = np.zeros((192, 1))
 
 # 10 weights of size 192.
 W = np.random.rand(10, 192)
@@ -80,7 +74,7 @@ W = scale_to_bound(W, W_bound)
 B = np.zeros((10, 1))
 
 # 10 output classes.
-Y = np.zeros(10)
+Y = np.zeros((10, 1))
 
 #################################
 #####      Convolution      #####
@@ -155,6 +149,12 @@ def unvectorize(vec):
 def fully_connected(F, W, B):
 	return sigmoid(np.dot(W, F) + B)
 
+#################################
+#####     Loss Function     #####
+#################################
+def loss(truth, prediction):
+	return 0.5 * np.square(np.sum((truth - prediction)))
+
 # Check for syntatical correctness (not logical correctness yet).
 I = x_train[0]
 
@@ -189,5 +189,7 @@ print(S2_new.shape)
 print(np.all(np.equal(S2, S2_new)))
 
 print("Fully Connected")
-y = fully_connected(F, W, B)
-print(y)
+y_hat = fully_connected(F, W, B)
+
+
+print(loss(y_train[0], y_hat))
