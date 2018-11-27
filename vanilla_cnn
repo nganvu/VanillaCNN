@@ -138,10 +138,12 @@ for i in range(S1.shape[0]):
 	pooling(C1[i], S1[i])
 
 print("Convolution 2")
-for i in range(S1.shape[0]):
-	for j in range(C2.shape[0]): 
-		convolution(S1[i], K2[i][j], C2[j])
-		C2[j] = sigmoid(C2[j] + B2[j])
+for i in range(C2.shape[0]):
+	temp = np.zeros(C2[i].shape)
+	for j in range(S1.shape[0]): 
+		convolution(S1[j], K2[j][i], temp)
+		C2[i] += temp
+	C2[i] = sigmoid(C2[i] + B2[i])
 
 print("Pooling 2")
 for i in range(S2.shape[0]):
