@@ -6,6 +6,21 @@ import numpy as np
 from keras.datasets import mnist
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
+# Convert labels to one-hot vectors.
+def convert_to_one_hot(labels):
+	labels_vecs = np.zeros((labels.size, 10))
+	labels_vecs[np.arange(labels.size), labels] = 1
+	return labels_vecs
+
+print(y_train.shape)
+print(y_train[0])
+
+y_train = convert_to_one_hot(y_train)
+y_test = convert_to_one_hot(y_test)
+
+print(y_train.shape)
+print(y_train[0])
+
 # Scale a set uniformly sampled from [0, 1] to [-bound, bound].
 def scale_to_bound(arr, arr_bound):
 	return arr * 2 * arr_bound - arr_bound
