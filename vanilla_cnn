@@ -125,6 +125,15 @@ def pooling(in_mat, out_mat):
 															in_mat[2*i    ][2*j + 1] +
 															in_mat[2*i + 1][2*j + 1])
 
+#################################
+#####     Vectorization     #####
+#################################
+def vectorize(mats):
+	return mats.reshape(-1, 1)
+
+def unvectorize(vec):
+	return vec.reshape(S2.shape)
+
 # Check for syntatical correctness (not logical correctness yet).
 I = x_train[0]
 
@@ -149,3 +158,11 @@ print("Pooling 2")
 for i in range(S2.shape[0]):
 	pooling(C2[i], S2[i])
 
+print("Vectorization")
+F = vectorize(S2)
+print(F.shape)
+S2_new = unvectorize(F)
+print(S2_new.shape)
+
+# S2 should stay the same after vectorization and unvectorization.
+print(np.all(np.equal(S2, S2_new)))
