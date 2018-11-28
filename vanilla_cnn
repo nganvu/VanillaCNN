@@ -1,10 +1,13 @@
 #!/usr/bin/python3
 
+import sys, os
 import numpy as np
 
 # Load MNISt dataset.
+sys.stderr = open(os.devnull, 'w') # Disable stderr.
 from keras.datasets import mnist
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
+sys.stderr = sys.__stderr__ # Enable stderr.
 
 # Convert labels to one-hot vectors.
 def convert_to_one_hot(labels):
@@ -19,11 +22,11 @@ y_test = convert_to_one_hot(y_test)
 def scale_to_bound(arr, arr_bound):
 	return arr * 2 * arr_bound - arr_bound
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FEEDFORWARD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FEEDFORWARD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 #################################
 ##### Convolutional Layer 1 #####
@@ -136,10 +139,10 @@ def pooling(in_mat, out_mat):
 	# Iterate through the output image.
 	for i in range(xo_length):
 		for j in range(yo_length):
-			out_mat[i][j] = 0.25 * (in_mat[2*i    ][2*j    ] + 
-															in_mat[2*i + 1][2*j    ] + 
-															in_mat[2*i    ][2*j + 1] +
-															in_mat[2*i + 1][2*j + 1])
+			out_mat[i][j] = 0.25 * (in_mat[2*i    ][2*j    ] +
+									in_mat[2*i + 1][2*j    ] +
+									in_mat[2*i    ][2*j + 1] +
+									in_mat[2*i + 1][2*j + 1])
 	return out_mat
 
 #################################
@@ -161,13 +164,13 @@ def fully_connected(F, W, B):
 #####     Loss Function     #####
 #################################
 def loss(truth, prediction):
-	return 0.5 * np.square(np.sum((truth - prediction)))
+	return 0.5 * np.sum(np.square((truth - prediction)))
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ BACKPROPAGATION ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ BACKPROPAGATION ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 def find_delta_y_hat(y, y_hat):
 	delta_y_hat = np.multiply((y_hat - y), np.multiply((y_hat), (1 - y_hat)))
@@ -216,7 +219,9 @@ def find_delta_K2(delta_C2_sigma, S1):
 			# TODO: Fix convolution to support matrix with even side length.
 			# TODO: Reprove this part in the paper; seems very handwavy.
 			# delta_K2[p][q] = \
-			# 	convolution(np.rot90(S1[p], 2), delta_C2_sigma[q], delta_K2[p][q])
+			# 	convolution(np.rot90(S1[p], 2),
+			# 				delta_C2_sigma[q],
+			# 				delta_K2[p][q])
 			for u in range(K2.shape[2]):
 				for v in range(K2.shape[3]):
 					delta_K2[p][q][u][v] = 0
@@ -282,7 +287,8 @@ def find_delta_K1(delta_C1_sigma, I):
 								continue
 							else:
 								delta_K1[p][q][u][v] += \
-									I_rot[u - i][v - j] * delta_C1_sigma[q][i][j]
+									I_rot[u - i][v - j] * \
+									delta_C1_sigma[q][i][j]
 	assert(delta_K1.shape == K1.shape)
 	return delta_K1
 
@@ -293,19 +299,17 @@ def find_delta_B1(delta_C1_sigma):
 	assert(delta_B1.shape==B1.shape)
 	return delta_B1
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UPDATING PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UPDATING PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-def update_parameters(K1, delta_K1,
-											B1, delta_B1,
-											K2, delta_K2,
-											B2, delta_B2,
-											W, delta_W,
-											B, delta_B,
-											alpha):
+def update_parameters(
+	K1, delta_K1, B1, delta_B1,
+	K2, delta_K2, B2, delta_B2,
+	W, delta_W, B, delta_B,
+	alpha):
 	K1 = K1 - alpha * delta_K1
 	B1 = B1 - alpha * delta_B1
 	K2 = K2 - alpha * delta_K2
@@ -314,16 +318,105 @@ def update_parameters(K1, delta_K1,
 	B = B - alpha * delta_B
 	return (K1, B1, K2, B2, W, B)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ TESTING ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ TESTING ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # Check for syntatical correctness (not logical correctness yet).
-print(x_train.shape[0])
-for s in range(600):
-	if s % 10 == 0:
+BATCH_SIZE = 100
+EPOCHS = 200
+print("Batch size: {}, Epochs: {}".format(BATCH_SIZE, EPOCHS))
+for e in range(EPOCHS):
+	print("Epoch {}".format(e))
+
+	avg_delta_K1 = np.zeros(K1.shape)
+	avg_delta_B1 = np.zeros(B1.shape)
+	avg_delta_K2 = np.zeros(K2.shape)
+	avg_delta_B2 = np.zeros(B2.shape)
+	avg_delta_W = np.zeros(W.shape)
+	avg_delta_B = np.zeros(B.shape)
+
+	for s in range(BATCH_SIZE):
+		I = x_train[e * BATCH_SIZE + s]
+		y = y_train[e * BATCH_SIZE + s]
+
+		# Convolution 1
+		for i in range(C1.shape[0]):
+			C1[i] = convolution(I, K1[0][i], C1[i])
+			C1[i] = sigmoid(C1[i] + B1[i])
+
+		# Pooling 1
+		for i in range(S1.shape[0]):
+			S1[i] = pooling(C1[i], S1[i])
+
+		# Convolution 2
+		for i in range(C2.shape[0]):
+			temp = np.zeros(C2[i].shape)
+			for j in range(S1.shape[0]):
+				temp = convolution(S1[j], K2[j][i], temp)
+				C2[i] += temp
+			C2[i] = sigmoid(C2[i] + B2[i])
+
+		# Pooling 2
+		for i in range(S2.shape[0]):
+			S2[i] = pooling(C2[i], S2[i])
+
+		# Vectorization
+		F = vectorize(S2)
+
+		# Fully Connected
+		y_hat = sigmoid(fully_connected(F, W, B))
+
+		if s % 10 == 0:
+			print("Loss: {}".format(loss(y, y_hat)))
+
+		delta_y_hat = find_delta_y_hat(y.reshape(10, 1), y_hat)
+		delta_W = find_delta_W(delta_y_hat, F)
+		delta_B = find_delta_B(delta_y_hat)
+
+		delta_F = find_delta_F(W, delta_y_hat)
+
+		delta_S2 = find_delta_S2(delta_F)
+		delta_C2 = find_delta_C2(delta_S2)
+		delta_C2_sigma = find_delta_C2_sigma(delta_C2, C2)
+		delta_K2 = find_delta_K2(delta_C2_sigma, S1)
+		delta_B2 = find_delta_B2(delta_C2_sigma)
+
+		delta_S1 = find_delta_S1(delta_C2_sigma, K2)
+		delta_C1 = find_delta_C1(delta_S1)
+		delta_C1_sigma = find_delta_C1_sigma(delta_C1, C1)
+		delta_K1 = find_delta_K1(delta_C1_sigma, I)
+		delta_B1 = find_delta_B1(delta_C1_sigma)
+
+		avg_delta_K1 += delta_K1
+		avg_delta_B1 += delta_B1
+		avg_delta_K2 += delta_K2
+		avg_delta_B2 += delta_B2
+		avg_delta_W += delta_W
+		avg_delta_B += delta_B
+
+	avg_delta_K1 /= BATCH_SIZE
+	avg_delta_B1 /= BATCH_SIZE
+	avg_delta_K2 /= BATCH_SIZE
+	avg_delta_B2 /= BATCH_SIZE
+	avg_delta_W /= BATCH_SIZE
+	avg_delta_B /= BATCH_SIZE
+
+	K1, B1, K2, B2, W, B = update_parameters(K1, avg_delta_K1,
+											 B1, avg_delta_B1,
+											 K2, avg_delta_K2,
+											 B2, avg_delta_B2,
+											 W, avg_delta_W,
+											 B, avg_delta_B,
+											 0.2)
+
+# Finished training. Try on first 20 sampes.
+correct = 0
+incorrect = 0
+for s in range(20):
+	if s % 50 == 0:
 		print("Epoch {}".format(s))
 	I = x_train[s]
 	y = y_train[s]
@@ -340,7 +433,7 @@ for s in range(600):
 	# Convolution 2
 	for i in range(C2.shape[0]):
 		temp = np.zeros(C2[i].shape)
-		for j in range(S1.shape[0]): 
+		for j in range(S1.shape[0]):
 			temp = convolution(S1[j], K2[j][i], temp)
 			C2[i] += temp
 		C2[i] = sigmoid(C2[i] + B2[i])
@@ -353,77 +446,13 @@ for s in range(600):
 	F = vectorize(S2)
 
 	# Fully Connected
-	y_hat = fully_connected(F, W, B)
-
-	if s % 10 == 0:
-		print("Loss: {}".format(loss(y, y_hat)))
-
-	delta_y_hat = find_delta_y_hat(y.reshape(10, 1), y_hat)
-	delta_W = find_delta_W(delta_y_hat, F)
-	delta_B = find_delta_B(delta_y_hat)
-
-	delta_F = find_delta_F(W, delta_y_hat)
-
-	delta_S2 = find_delta_S2(delta_F)
-	delta_C2 = find_delta_C2(delta_S2)
-	delta_C2_sigma = find_delta_C2_sigma(delta_C2, C2)
-	delta_K2 = find_delta_K2(delta_C2_sigma, S1)
-	delta_B2 = find_delta_B2(delta_C2_sigma)
-
-	delta_S1 = find_delta_S1(delta_C2_sigma, K2)
-	delta_C1 = find_delta_C1(delta_S1)
-	delta_C1_sigma = find_delta_C1_sigma(delta_C1, C1)
-	delta_K1 = find_delta_K1(delta_C1_sigma, I)
-	delta_B1 = find_delta_B1(delta_C1_sigma)
-
-	K1, B1, K2, B2, W, B = update_parameters(K1, delta_K1,
-																					 B1, delta_B1,
-																					 K2, delta_K2,
-																					 B2, delta_B2,
-																					 W, delta_W,
-																					 B, delta_B,
-																					 0.5)
-
-# Finished training. Try on first 20 sampes.
-correct = 0
-incorrect = 0
-for s in range(20):
-	if s % 50 == 0:
-		print("Epoch {}".format(s))
-	I = x_train[s]
-
-	# Convolution 1
-	for i in range(C1.shape[0]):
-		C1[i] = convolution(I, K1[0][i], C1[i])
-		C1[i] = sigmoid(C1[i] + B1[i])
-
-	# Pooling 1
-	for i in range(S1.shape[0]):
-		S1[i] = pooling(C1[i], S1[i])
-
-	# Convolution 2
-	for i in range(C2.shape[0]):
-		temp = np.zeros(C2[i].shape)
-		for j in range(S1.shape[0]): 
-			temp = convolution(S1[j], K2[j][i], temp)
-			C2[i] += temp
-		C2[i] = sigmoid(C2[i] + B2[i])
-
-	# Pooling 2
-	for i in range(S2.shape[0]):
-		S2[i] = pooling(C2[i], S2[i])
-
-	# Vectorization
-	F = vectorize(S2)
-
-	# Fully Connected
-	y_hat = fully_connected(F, W, B)
+	y_hat = sigmoid(fully_connected(F, W, B))
 
 	# Prediction:
 	p = np.argmax(y_hat)
-	a = np.argmax(y_train[s])
-	print("Predicted: {}".format(p))
-	print("Actual: {}".format(a))
+	a = np.argmax(y)
+	print("Predicted: {} - {}".format(p, y_hat))
+	print("Actual: {} - {}".format(a, y))
 	if p == a:
 		correct += 1
 	else:
