@@ -87,12 +87,6 @@ Y = np.zeros((10, 1))
 #####      Convolution      #####
 #################################
 def convolution(in_mat, kernel, out_mat):
-    s = kernel.shape + tuple(np.subtract(in_mat.shape, kernel.shape) + 1)
-    subM = np.lib.stride_tricks.as_strided(
-		in_mat, shape = s, strides = in_mat.strides * 2)
-    return np.einsum("ij,ijkl->kl", kernel, subM)
-
-def old_convolution(in_mat, kernel, out_mat):
 	# Assume the kernel is square and has an odd side length.
 	u_length, v_length = kernel.shape
 	assert(u_length == v_length and u_length % 2 == 1)
@@ -329,6 +323,12 @@ def update_parameters(
 # Component tests, with manual inputs starting from S1.
 # All types of layers are covered.
 # Test convolution.
+def baseline_convolution(in_mat, kernel, out_mat):
+    s = kernel.shape + tuple(np.subtract(in_mat.shape, kernel.shape) + 1)
+    subM = np.lib.stride_tricks.as_strided(
+		in_mat, shape = s, strides = in_mat.strides * 2)
+    return np.einsum("ij,ijkl->kl", kernel, subM)
+
 print("First convolution test")
 in_mat = np.ones((12, 12))
 out_mat = np.zeros((8, 8))
@@ -339,9 +339,9 @@ print(in_mat)
 print("Kernel")
 print(kernel)
 print("Baseline:")
-print(convolution(in_mat, kernel, out_mat))
+print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
-print(old_convolution(in_mat, kernel, out_mat))
+print(convolution(in_mat, kernel, out_mat))
 
 print("Second convolution test")
 in_mat = np.ones((5, 5))
@@ -354,9 +354,9 @@ print(in_mat)
 print("Kernel")
 print(kernel)
 print("Baseline:")
-print(convolution(in_mat, kernel, out_mat))
+print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
-print(old_convolution(in_mat, kernel, out_mat))
+print(convolution(in_mat, kernel, out_mat))
 
 print("Third convolution test")
 in_mat = np.random.rand(5, 5)
@@ -366,10 +366,11 @@ print("Input")
 print(in_mat)
 print("Kernel")
 print(kernel)
+# The baseline is actually correlation, not convolution!!!
 print("Baseline:")
-print(convolution(in_mat, np.rot90(kernel, 2), out_mat))
+print(baseline_convolution(in_mat, np.rot90(kernel, 2), out_mat))
 print("Mine:")
-print(old_convolution(in_mat, kernel, out_mat))
+print(convolution(in_mat, kernel, out_mat))
 
 sys.exit()
 
