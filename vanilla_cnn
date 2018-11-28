@@ -200,10 +200,11 @@ def find_delta_C2(delta_S2):
 		for i in range(C2.shape[1]):
 			for j in range(C2.shape[2]):
 				delta_C2[q][i][j] = 0.25 * delta_S2[q][int(i / 2)][int(j / 2)]
+	assert(delta_C2.shape==C2.shape)
 	return delta_C2
 
-def find_delta_C2_sigma(delta_C2):
-	delta_C2_sigma = np.multiply(delta_C2, np.multiply(C, 1 - C))
+def find_delta_C2_sigma(delta_C2, C2):
+	delta_C2_sigma = np.multiply(delta_C2, np.multiply(C2, 1 - C2))
 	assert(delta_C2_sigma.shape == C2.shape)
 	return delta_C2_sigma
 
@@ -226,7 +227,92 @@ def find_delta_K2(delta_C2_sigma, S1):
 							else:
 								delta_K2[p][q][u][v] += \
 									S1_p_rot[u - i][v - j] * delta_C2_sigma[q][i][j]
+	assert(delta_K2.shape == K2.shape)
 	return delta_K2
+
+def find_delta_B2(delta_C2_sigma):
+	delta_B2 = np.zeros(B2.shape)
+	for q in range(B2.shape[0]):
+		delta_B2[q] = np.sum(delta_C2_sigma[q])
+	assert(delta_B2.shape==B2.shape)
+	return delta_B2
+
+def find_delta_S1(delta_C2_sigma, K2):
+	delta_S1 = np.zeros(S1.shape)
+	for p in range(delta_S1.shape[0]):
+		temp = np.zeros(delta_S1[p].shape)
+		for q in range(delta_C2_sigma.shape[0]):
+			# TODO: Reprove this part in the paper. Clarify why we need padding.
+			temp = convolution(np.pad(delta_C2_sigma[q], 4, 'constant'),
+												 np.rot90(K2[p][q], 2),
+												 temp)
+			delta_S1[p] += temp
+	assert(delta_S1.shape == S1.shape)
+	return delta_S1
+
+def find_delta_C1(delta_S1):
+	delta_C1 = np.zeros(C1.shape)
+	for q in range(C1.shape[0]):
+		for i in range(C1.shape[1]):
+			for j in range(C1.shape[2]):
+				delta_C1[q][i][j] = 0.25 * delta_S1[q][int(i / 2)][int(j / 2)]
+	assert(delta_C1.shape==C1.shape)
+	return delta_C1
+
+def find_delta_C1_sigma(delta_C1, C1):
+	delta_C1_sigma = np.multiply(delta_C1, np.multiply(C1, 1 - C1))
+	assert(delta_C1_sigma.shape == C1.shape)
+	return delta_C1_sigma
+
+def find_delta_K1(delta_C1_sigma, I):
+	delta_K1 = np.zeros(K1.shape)
+	I_rot = np.rot90(I, 2)
+	for p in range(K1.shape[0]):
+		for q in range(K1.shape[1]):
+			# TODO: Fix convolution to support matrix with even side length.
+			# TODO: Reprove this part in the paper; seems very handwavy.
+			# delta_K1[p][q] = \
+			# 	convolution(np.rot90(S1[p], 2), delta_C2_sigma[q], delta_K1[p][q])
+			for u in range(K1.shape[2]):
+				for v in range(K1.shape[3]):
+					delta_K1[p][q][u][v] = 0
+					for i in range(C1[0].shape[0]):
+						for j in range(C1[0].shape[1]):
+							if (u - i < 0 or v - j < 0):
+								continue
+							else:
+								delta_K1[p][q][u][v] += \
+									I_rot[u - i][v - j] * delta_C1_sigma[q][i][j]
+	assert(delta_K1.shape == K1.shape)
+	return delta_K1
+
+def find_delta_B1(delta_C1_sigma):
+	delta_B1 = np.zeros(B1.shape)
+	for q in range(B1.shape[0]):
+		delta_B1[q] = np.sum(delta_C1_sigma[q])
+	assert(delta_B1.shape==B1.shape)
+	return delta_B1
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UPDATING PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def update_parameters(K1, delta_K1,
+											B1, delta_B1,
+											K2, delta_K2,
+											B2, delta_B2,
+											W, delta_W,
+											B, delta_B,
+											alpha):
+	K1 = K1 - alpha * delta_K1
+	B1 = B1 - alpha * delta_B1
+	K2 = K2 - alpha * delta_K2
+	B2 = B2 - alpha * delta_B2
+	W = W - alpha * delta_W
+	B = B - alpha * delta_B
+	return (K1, B1, K2, B2, W, B)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -235,51 +321,113 @@ def find_delta_K2(delta_C2_sigma, S1):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Check for syntatical correctness (not logical correctness yet).
-I = x_train[0]
+print(x_train.shape[0])
+for s in range(600):
+	if s % 10 == 0:
+		print("Epoch {}".format(s))
+	I = x_train[s]
+	y = y_train[s]
 
-print("Convolution 1")
-for i in range(C1.shape[0]):
-	C1[i] = convolution(I, K1[0][i], C1[i])
-	C1[i] = sigmoid(C1[i] + B1[i])
+	# Convolution 1
+	for i in range(C1.shape[0]):
+		C1[i] = convolution(I, K1[0][i], C1[i])
+		C1[i] = sigmoid(C1[i] + B1[i])
 
-print("Pooling 1")
-for i in range(S1.shape[0]):
-	S1[i] = pooling(C1[i], S1[i])
+	# Pooling 1
+	for i in range(S1.shape[0]):
+		S1[i] = pooling(C1[i], S1[i])
 
-print("Convolution 2")
-for i in range(C2.shape[0]):
-	temp = np.zeros(C2[i].shape)
-	for j in range(S1.shape[0]): 
-		temp = convolution(S1[j], K2[j][i], temp)
-		C2[i] += temp
-	C2[i] = sigmoid(C2[i] + B2[i])
+	# Convolution 2
+	for i in range(C2.shape[0]):
+		temp = np.zeros(C2[i].shape)
+		for j in range(S1.shape[0]): 
+			temp = convolution(S1[j], K2[j][i], temp)
+			C2[i] += temp
+		C2[i] = sigmoid(C2[i] + B2[i])
 
-print("Pooling 2")
-for i in range(S2.shape[0]):
-	S2[i] = pooling(C2[i], S2[i])
+	# Pooling 2
+	for i in range(S2.shape[0]):
+		S2[i] = pooling(C2[i], S2[i])
 
-print("Vectorization")
-F = vectorize(S2)
-print(F.shape)
+	# Vectorization
+	F = vectorize(S2)
 
-# S2 should stay the same after vectorization and unvectorization.
-S2_new = unvectorize(F)
-print(S2_new.shape)
-print(np.all(np.equal(S2, S2_new)))
+	# Fully Connected
+	y_hat = fully_connected(F, W, B)
 
-print("Fully Connected")
-y_hat = fully_connected(F, W, B)
+	if s % 10 == 0:
+		print("Loss: {}".format(loss(y, y_hat)))
 
-print(loss(y_train[0], y_hat))
+	delta_y_hat = find_delta_y_hat(y.reshape(10, 1), y_hat)
+	delta_W = find_delta_W(delta_y_hat, F)
+	delta_B = find_delta_B(delta_y_hat)
 
-delta_y_hat = find_delta_y_hat(y_train[0].reshape(10, 1), y_hat)
-delta_W = find_delta_W(delta_y_hat, F)
-delta_B = find_delta_B(delta_y_hat)
+	delta_F = find_delta_F(W, delta_y_hat)
 
-delta_F = find_delta_F(W, delta_y_hat)
+	delta_S2 = find_delta_S2(delta_F)
+	delta_C2 = find_delta_C2(delta_S2)
+	delta_C2_sigma = find_delta_C2_sigma(delta_C2, C2)
+	delta_K2 = find_delta_K2(delta_C2_sigma, S1)
+	delta_B2 = find_delta_B2(delta_C2_sigma)
 
-delta_S2 = find_delta_S2(delta_F)
-delta_C2 = find_delta_C2(delta_S2)
-delta_C2_sigma = find_delta_C2(delta_C2)
-delta_K2 = find_delta_K2(delta_C2_sigma, S1)
+	delta_S1 = find_delta_S1(delta_C2_sigma, K2)
+	delta_C1 = find_delta_C1(delta_S1)
+	delta_C1_sigma = find_delta_C1_sigma(delta_C1, C1)
+	delta_K1 = find_delta_K1(delta_C1_sigma, I)
+	delta_B1 = find_delta_B1(delta_C1_sigma)
 
+	K1, B1, K2, B2, W, B = update_parameters(K1, delta_K1,
+																					 B1, delta_B1,
+																					 K2, delta_K2,
+																					 B2, delta_B2,
+																					 W, delta_W,
+																					 B, delta_B,
+																					 0.5)
+
+# Finished training. Try on first 20 sampes.
+correct = 0
+incorrect = 0
+for s in range(20):
+	if s % 50 == 0:
+		print("Epoch {}".format(s))
+	I = x_train[s]
+
+	# Convolution 1
+	for i in range(C1.shape[0]):
+		C1[i] = convolution(I, K1[0][i], C1[i])
+		C1[i] = sigmoid(C1[i] + B1[i])
+
+	# Pooling 1
+	for i in range(S1.shape[0]):
+		S1[i] = pooling(C1[i], S1[i])
+
+	# Convolution 2
+	for i in range(C2.shape[0]):
+		temp = np.zeros(C2[i].shape)
+		for j in range(S1.shape[0]): 
+			temp = convolution(S1[j], K2[j][i], temp)
+			C2[i] += temp
+		C2[i] = sigmoid(C2[i] + B2[i])
+
+	# Pooling 2
+	for i in range(S2.shape[0]):
+		S2[i] = pooling(C2[i], S2[i])
+
+	# Vectorization
+	F = vectorize(S2)
+
+	# Fully Connected
+	y_hat = fully_connected(F, W, B)
+
+	# Prediction:
+	p = np.argmax(y_hat)
+	a = np.argmax(y_train[s])
+	print("Predicted: {}".format(p))
+	print("Actual: {}".format(a))
+	if p == a:
+		correct += 1
+	else:
+		incorrect += 1
+
+print(correct)
+print(incorrect)
