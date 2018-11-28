@@ -113,6 +113,7 @@ def convolution(in_mat, kernel, out_mat):
 					else:
 						out_mat[i][j] = in_mat[i - u][j - v] * \
 							kernel[u + u_margin][v + v_margin]
+	return out_mat
 
 #################################
 #####        Sigmoid        #####
@@ -139,6 +140,7 @@ def pooling(in_mat, out_mat):
 															in_mat[2*i + 1][2*j    ] + 
 															in_mat[2*i    ][2*j + 1] +
 															in_mat[2*i + 1][2*j + 1])
+	return out_mat
 
 #################################
 #####     Vectorization     #####
@@ -168,10 +170,63 @@ def loss(truth, prediction):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def find_delta_y_hat(y, y_hat):
-	return np.multiply((y_hat - y), np.multiply((y_hat), (1 - y_hat)))
+	delta_y_hat = np.multiply((y_hat - y), np.multiply((y_hat), (1 - y_hat)))
+	assert(delta_y_hat.shape == y_hat.shape)
+	return delta_y_hat
 
 def find_delta_W(delta_y_hat, F):
-	return delta_y_hat.dot(F.T)
+	delta_W = delta_y_hat.dot(F.T)
+	assert(delta_W.shape == W.shape)
+	return delta_W
+
+def find_delta_B(delta_y_hat):
+	delta_B = delta_y_hat
+	assert(delta_B.shape == B.shape)
+	return delta_B
+
+def find_delta_F(W, delta_y_hat):
+	delta_F = W.T.dot(delta_y_hat)
+	assert(delta_F.shape == F.shape)
+	return delta_F
+
+def find_delta_S2(delta_F):
+	delta_S2 = unvectorize(delta_F)
+	assert(delta_S2.shape == S2.shape)
+	return delta_S2
+
+def find_delta_C2(delta_S2):
+	delta_C2 = np.zeros(C2.shape)
+	for q in range(C2.shape[0]):
+		for i in range(C2.shape[1]):
+			for j in range(C2.shape[2]):
+				delta_C2[q][i][j] = 0.25 * delta_S2[q][int(i / 2)][int(j / 2)]
+	return delta_C2
+
+def find_delta_C2_sigma(delta_C2):
+	delta_C2_sigma = np.multiply(delta_C2, np.multiply(C, 1 - C))
+	assert(delta_C2_sigma.shape == C2.shape)
+	return delta_C2_sigma
+
+def find_delta_K2(delta_C2_sigma, S1):
+	delta_K2 = np.zeros(K2.shape)
+	for p in range(K2.shape[0]):
+		for q in range(K2.shape[1]):
+			S1_p_rot = np.rot90(S1[p], 2)
+			# TODO: Fix convolution to support matrix with even side length.
+			# TODO: Reprove this part in the paper; seems very handwavy.
+			# delta_K2[p][q] = \
+			# 	convolution(np.rot90(S1[p], 2), delta_C2_sigma[q], delta_K2[p][q])
+			for u in range(K2.shape[2]):
+				for v in range(K2.shape[3]):
+					delta_K2[p][q][u][v] = 0
+					for i in range(C2[0].shape[0]):
+						for j in range(C2[0].shape[1]):
+							if (u - i < 0 or v - j < 0):
+								continue
+							else:
+								delta_K2[p][q][u][v] += \
+									S1_p_rot[u - i][v - j] * delta_C2_sigma[q][i][j]
+	return delta_K2
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -184,24 +239,24 @@ I = x_train[0]
 
 print("Convolution 1")
 for i in range(C1.shape[0]):
-	convolution(I, K1[0][i], C1[i])
+	C1[i] = convolution(I, K1[0][i], C1[i])
 	C1[i] = sigmoid(C1[i] + B1[i])
 
 print("Pooling 1")
 for i in range(S1.shape[0]):
-	pooling(C1[i], S1[i])
+	S1[i] = pooling(C1[i], S1[i])
 
 print("Convolution 2")
 for i in range(C2.shape[0]):
 	temp = np.zeros(C2[i].shape)
 	for j in range(S1.shape[0]): 
-		convolution(S1[j], K2[j][i], temp)
+		temp = convolution(S1[j], K2[j][i], temp)
 		C2[i] += temp
 	C2[i] = sigmoid(C2[i] + B2[i])
 
 print("Pooling 2")
 for i in range(S2.shape[0]):
-	pooling(C2[i], S2[i])
+	S2[i] = pooling(C2[i], S2[i])
 
 print("Vectorization")
 F = vectorize(S2)
@@ -219,3 +274,12 @@ print(loss(y_train[0], y_hat))
 
 delta_y_hat = find_delta_y_hat(y_train[0].reshape(10, 1), y_hat)
 delta_W = find_delta_W(delta_y_hat, F)
+delta_B = find_delta_B(delta_y_hat)
+
+delta_F = find_delta_F(W, delta_y_hat)
+
+delta_S2 = find_delta_S2(delta_F)
+delta_C2 = find_delta_C2(delta_S2)
+delta_C2_sigma = find_delta_C2(delta_C2)
+delta_K2 = find_delta_K2(delta_C2_sigma, S1)
+
