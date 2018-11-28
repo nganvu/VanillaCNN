@@ -87,9 +87,7 @@ Y = np.zeros((10, 1))
 #####      Convolution      #####
 #################################
 def convolution(in_mat, kernel, out_mat):
-	# Assume the kernel is square and has an odd side length.
 	u_length, v_length = kernel.shape
-	assert(u_length == v_length and u_length % 2 == 1)
 
 	# Make sure the shape of output matches the convolution of input and kernel.
 	# Only keep the parts of input that are computed without zero-padded edges.
@@ -98,8 +96,8 @@ def convolution(in_mat, kernel, out_mat):
 	assert(xi_length == xo_length + u_length - 1)
 	assert(yi_length == yo_length + v_length - 1)
 
-	u_margin = v_margin = int(u_length / 2)
-	(u_lbound, u_ubound) = (v_lbound, v_ubound) = (-u_margin, u_margin)
+	u_margin = int(u_length / 2)
+	v_margin = int(v_length / 2)
 
 	res = np.zeros(in_mat.shape)
 
@@ -107,16 +105,22 @@ def convolution(in_mat, kernel, out_mat):
 	for i in range(xi_length):
 		for j in range(yi_length):
 			# Iterate through kernel.
-			for u in range(u_lbound, u_ubound + 1):
-				for v in range(v_lbound, v_ubound + 1):
+			for u in range(u_length):
+				for v in range(v_length):
+					# TODO: Double check the -1 part. Might not need it.
+					iu = i - (u - u_margin) - (1 if u_length % 2 == 0 else 0)
+					jv = j - (v - v_margin) - (1 if v_length % 2 == 0 else 0)
+
 					# Ignore parts that require zero-padded edges.
-					if ((i - u < 0 or i - u >= xi_length) or
-						(j - v < 0 or j - v >= yi_length)):
+					if ((iu < 0 or iu >= xi_length) or
+						(jv < 0 or jv >= yi_length)):
 						continue
 					else:
-						res[i][j] += in_mat[i - u][j - v] * \
-							kernel[u + u_margin][v + v_margin]
-	res = res[u_margin:-u_margin, v_margin:-v_margin]
+						res[i][j] += in_mat[iu][jv] * kernel[u][v]
+	u_end = u_length - u_margin - 1
+	v_end = v_length - v_margin - 1
+	res = res[u_margin:(-u_end if u_end > 0 else None),
+			  v_margin:(-v_end if v_end > 0 else None)]
 	assert(out_mat.shape == res.shape)
 	return res
 
@@ -230,8 +234,8 @@ def find_delta_K2(delta_C2_sigma, S1):
 							if (u - i < 0 or v - j < 0):
 								continue
 							else:
-								delta_K2[p][q][u][v] += \
-									S1_p_rot[u - i][v - j] * delta_C2_sigma[q][i][j]
+								delta_K2[p][q][u][v] += S1_p_rot[u - i][v - j] \
+									* delta_C2_sigma[q][i][j]
 	assert(delta_K2.shape == K2.shape)
 	return delta_K2
 
@@ -329,7 +333,7 @@ def baseline_convolution(in_mat, kernel, out_mat):
 		in_mat, shape = s, strides = in_mat.strides * 2)
     return np.einsum("ij,ijkl->kl", kernel, subM)
 
-print("First convolution test")
+print("First convolution test: Convolve with delta function")
 in_mat = np.ones((12, 12))
 out_mat = np.zeros((8, 8))
 kernel = np.zeros((5, 5))
@@ -343,7 +347,7 @@ print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
 print(convolution(in_mat, kernel, out_mat))
 
-print("Second convolution test")
+print("Second convolution test: Integer, odd-side-length square matrices")
 in_mat = np.ones((5, 5))
 out_mat = np.zeros((3, 3))
 kernel = np.zeros((3, 3))
@@ -358,10 +362,25 @@ print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
 print(convolution(in_mat, kernel, out_mat))
 
-print("Third convolution test")
+print("Third convolution test: Random, odd-side-length square matrices")
 in_mat = np.random.rand(5, 5)
 out_mat = np.zeros((3, 3))
 kernel = np.random.rand(3, 3)
+print("Input")
+print(in_mat)
+print("Kernel")
+print(kernel)
+# The baseline is actually correlation, not convolution!!!
+print("Baseline:")
+print(baseline_convolution(in_mat, np.rot90(kernel, 2), out_mat))
+print("Mine:")
+print(convolution(in_mat, kernel, out_mat))
+
+print("Fourth convolution test: Random, any size matrices")
+in_mat = np.random.rand(5, 4)
+out_mat = np.zeros((4, 2))
+kernel = np.random.rand(2, 3)
+kernel[0][0] = 1
 print("Input")
 print(in_mat)
 print("Kernel")
