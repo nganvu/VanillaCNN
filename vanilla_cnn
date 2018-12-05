@@ -84,6 +84,31 @@ B = np.zeros((10, 1))
 Y = np.zeros((10, 1))
 
 #################################
+#####      Correlation      #####
+#################################
+def correlation(in_mat, kernal, out_mat):
+	u_length, v_length = kernel.shape
+
+	# Make sure the shape of output matches the convolution of input and kernel.
+	# Only keep the parts of input that are computed without zero-padded edges.
+	xo_length, yo_length = out_mat.shape
+	xi_length, yi_length = in_mat.shape
+	assert(xi_length == xo_length + u_length - 1)
+	assert(yi_length == yo_length + v_length - 1)
+
+	res = np.zeros(out_mat.shape)
+
+	# Iterate through output image.
+	for i in range(xo_length):
+		for j in range(yo_length):
+			# Iterate through kernel.
+			for u in range(u_length):
+				for v in range(v_length):
+					res[i][j] += in_mat[i + u][j + v] * kernel[u][v]
+	assert(out_mat.shape == res.shape)
+	return res
+
+#################################
 #####      Convolution      #####
 #################################
 def convolution(in_mat, kernel, out_mat):
@@ -220,22 +245,10 @@ def find_delta_K2(delta_C2_sigma, S1):
 	for p in range(K2.shape[0]):
 		for q in range(K2.shape[1]):
 			S1_p_rot = np.rot90(S1[p], 2)
-			# TODO: Fix convolution to support matrix with even side length.
 			# TODO: Reprove this part in the paper; seems very handwavy.
-			# delta_K2[p][q] = \
-			# 	convolution(np.rot90(S1[p], 2),
-			# 				delta_C2_sigma[q],
-			# 				delta_K2[p][q])
-			for u in range(K2.shape[2]):
-				for v in range(K2.shape[3]):
-					delta_K2[p][q][u][v] = 0
-					for i in range(C2[0].shape[0]):
-						for j in range(C2[0].shape[1]):
-							if (u - i < 0 or v - j < 0):
-								continue
-							else:
-								delta_K2[p][q][u][v] += S1_p_rot[u - i][v - j] \
-									* delta_C2_sigma[q][i][j]
+			delta_K2[p][q] = convolution(np.rot90(S1[p], 2),
+									  delta_C2_sigma[q],
+									  delta_K2[p][q])
 	assert(delta_K2.shape == K2.shape)
 	return delta_K2
 
@@ -278,10 +291,7 @@ def find_delta_K1(delta_C1_sigma, I):
 	I_rot = np.rot90(I, 2)
 	for p in range(K1.shape[0]):
 		for q in range(K1.shape[1]):
-			# TODO: Fix convolution to support matrix with even side length.
-			# TODO: Reprove this part in the paper; seems very handwavy.
-			# delta_K1[p][q] = \
-			# 	convolution(np.rot90(S1[p], 2), delta_C2_sigma[q], delta_K1[p][q])
+			# TODO: Extend convolution to have padding or non-padding options.
 			for u in range(K1.shape[2]):
 				for v in range(K1.shape[3]):
 					delta_K1[p][q][u][v] = 0
@@ -346,6 +356,7 @@ print("Baseline:")
 print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
 print(convolution(in_mat, kernel, out_mat))
+print(correlation(in_mat, kernel, out_mat))
 
 print("Second convolution test: Integer, odd-side-length square matrices")
 in_mat = np.ones((5, 5))
@@ -361,6 +372,7 @@ print("Baseline:")
 print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
 print(convolution(in_mat, kernel, out_mat))
+print(correlation(in_mat, kernel, out_mat))
 
 print("Third convolution test: Random, odd-side-length square matrices")
 in_mat = np.random.rand(5, 5)
@@ -372,9 +384,10 @@ print("Kernel")
 print(kernel)
 # The baseline is actually correlation, not convolution!!!
 print("Baseline:")
-print(baseline_convolution(in_mat, np.rot90(kernel, 2), out_mat))
+print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
-print(convolution(in_mat, kernel, out_mat))
+print(convolution(in_mat, np.rot90(kernel, 2), out_mat))
+print(correlation(in_mat, kernel, out_mat))
 
 print("Fourth convolution test: Random, any size matrices")
 in_mat = np.random.rand(5, 4)
@@ -387,9 +400,10 @@ print("Kernel")
 print(kernel)
 # The baseline is actually correlation, not convolution!!!
 print("Baseline:")
-print(baseline_convolution(in_mat, np.rot90(kernel, 2), out_mat))
+print(baseline_convolution(in_mat, kernel, out_mat))
 print("Mine:")
-print(convolution(in_mat, kernel, out_mat))
+print(convolution(in_mat, np.rot90(kernel, 2), out_mat))
+print(correlation(in_mat, kernel, out_mat))
 
 sys.exit()
 
