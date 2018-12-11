@@ -86,7 +86,7 @@ Y = np.zeros((10, 1))
 #################################
 #####      Correlation      #####
 #################################
-def correlation(in_mat, kernal, out_mat):
+def correlation(in_mat, kernel, out_mat):
 	u_length, v_length = kernel.shape
 
 	# Make sure the shape of output matches the convolution of input and kernel.
@@ -244,11 +244,7 @@ def find_delta_K2(delta_C2_sigma, S1):
 	delta_K2 = np.zeros(K2.shape)
 	for p in range(K2.shape[0]):
 		for q in range(K2.shape[1]):
-			S1_p_rot = np.rot90(S1[p], 2)
-			# TODO: Reprove this part in the paper; seems very handwavy.
-			delta_K2[p][q] = convolution(np.rot90(S1[p], 2),
-									  delta_C2_sigma[q],
-									  delta_K2[p][q])
+			delta_K2[p][q] = correlation(S1[p], delta_C2_sigma[q], delta_K2[p][q])
 	assert(delta_K2.shape == K2.shape)
 	return delta_K2
 
@@ -264,7 +260,7 @@ def find_delta_S1(delta_C2_sigma, K2):
 	for p in range(delta_S1.shape[0]):
 		temp = np.zeros(delta_S1[p].shape)
 		for q in range(delta_C2_sigma.shape[0]):
-			# TODO: Reprove this part in the paper. Clarify why we need padding.
+			# TODO: Always pad convolution by default.
 			temp = convolution(np.pad(delta_C2_sigma[q], 4, 'constant'),
 												 np.rot90(K2[p][q], 2),
 												 temp)
@@ -291,18 +287,7 @@ def find_delta_K1(delta_C1_sigma, I):
 	I_rot = np.rot90(I, 2)
 	for p in range(K1.shape[0]):
 		for q in range(K1.shape[1]):
-			# TODO: Extend convolution to have padding or non-padding options.
-			for u in range(K1.shape[2]):
-				for v in range(K1.shape[3]):
-					delta_K1[p][q][u][v] = 0
-					for i in range(C1[0].shape[0]):
-						for j in range(C1[0].shape[1]):
-							if (u - i < 0 or v - j < 0):
-								continue
-							else:
-								delta_K1[p][q][u][v] += \
-									I_rot[u - i][v - j] * \
-									delta_C1_sigma[q][i][j]
+			delta_K1[p][q] = correlation(I, delta_C1_sigma[q], delta_K1[p][q])
 	assert(delta_K1.shape == K1.shape)
 	return delta_K1
 
@@ -336,6 +321,147 @@ def update_parameters(
 
 # Component tests, with manual inputs starting from S1.
 # All types of layers are covered.
+
+# Check for syntatical correctness (not logical correctness yet).
+BATCH_SIZE = 100
+EPOCHS = 200
+print("Batch size: {}, Epochs: {}".format(BATCH_SIZE, EPOCHS))
+
+for e in range(EPOCHS):
+	print("Epoch {}".format(e))
+
+	avg_delta_K1 = np.zeros(K1.shape)
+	avg_delta_B1 = np.zeros(B1.shape)
+	avg_delta_K2 = np.zeros(K2.shape)
+	avg_delta_B2 = np.zeros(B2.shape)
+	avg_delta_W = np.zeros(W.shape)
+	avg_delta_B = np.zeros(B.shape)
+
+	for s in range(BATCH_SIZE):
+		I = x_train[e * BATCH_SIZE + s]
+		y = y_train[e * BATCH_SIZE + s]
+
+		# Convolution 1
+		for i in range(C1.shape[0]):
+			C1[i] = correlation(I, K1[0][i], C1[i])
+			C1[i] = sigmoid(C1[i] + B1[i])
+
+		# Pooling 1
+		for i in range(S1.shape[0]):
+			S1[i] = pooling(C1[i], S1[i])
+
+		# Convolution 2
+		for i in range(C2.shape[0]):
+			temp = np.zeros(C2[i].shape)
+			for j in range(S1.shape[0]):
+				temp = correlation(S1[j], K2[j][i], temp)
+				C2[i] += temp
+			C2[i] = sigmoid(C2[i] + B2[i])
+
+		# Pooling 2
+		for i in range(S2.shape[0]):
+			S2[i] = pooling(C2[i], S2[i])
+
+		# Vectorization
+		F = vectorize(S2)
+
+		# Fully Connected
+		y_hat = sigmoid(fully_connected(F, W, B))
+
+		if s % 10 == 0:
+			print("Loss: {}".format(loss(y, y_hat)))
+
+		delta_y_hat = find_delta_y_hat(y.reshape(10, 1), y_hat)
+		delta_W = find_delta_W(delta_y_hat, F)
+		delta_B = find_delta_B(delta_y_hat)
+
+		delta_F = find_delta_F(W, delta_y_hat)
+
+		delta_S2 = find_delta_S2(delta_F)
+		delta_C2 = find_delta_C2(delta_S2)
+		delta_C2_sigma = find_delta_C2_sigma(delta_C2, C2)
+		delta_K2 = find_delta_K2(delta_C2_sigma, S1)
+		delta_B2 = find_delta_B2(delta_C2_sigma)
+
+		delta_S1 = find_delta_S1(delta_C2_sigma, K2)
+		delta_C1 = find_delta_C1(delta_S1)
+		delta_C1_sigma = find_delta_C1_sigma(delta_C1, C1)
+		delta_K1 = find_delta_K1(delta_C1_sigma, I)
+		delta_B1 = find_delta_B1(delta_C1_sigma)
+
+		avg_delta_K1 += delta_K1
+		avg_delta_B1 += delta_B1
+		avg_delta_K2 += delta_K2
+		avg_delta_B2 += delta_B2
+		avg_delta_W += delta_W
+		avg_delta_B += delta_B
+
+	avg_delta_K1 /= BATCH_SIZE
+	avg_delta_B1 /= BATCH_SIZE
+	avg_delta_K2 /= BATCH_SIZE
+	avg_delta_B2 /= BATCH_SIZE
+	avg_delta_W /= BATCH_SIZE
+	avg_delta_B /= BATCH_SIZE
+
+	K1, B1, K2, B2, W, B = update_parameters(K1, avg_delta_K1,
+											 B1, avg_delta_B1,
+											 K2, avg_delta_K2,
+											 B2, avg_delta_B2,
+											 W, avg_delta_W,
+											 B, avg_delta_B,
+											 0.2)
+
+# Finished training. Try on first 20 sampes.
+correct = 0
+incorrect = 0
+
+for s in range(20):
+	if s % 50 == 0:
+		print("Epoch {}".format(s))
+	I = x_train[s]
+	y = y_train[s]
+
+	# Convolution 1
+	for i in range(C1.shape[0]):
+		C1[i] = convolution(I, K1[0][i], C1[i])
+		C1[i] = sigmoid(C1[i] + B1[i])
+
+	# Pooling 1
+	for i in range(S1.shape[0]):
+		S1[i] = pooling(C1[i], S1[i])
+
+	# Convolution 2
+	for i in range(C2.shape[0]):
+		temp = np.zeros(C2[i].shape)
+		for j in range(S1.shape[0]):
+			temp = convolution(S1[j], K2[j][i], temp)
+			C2[i] += temp
+		C2[i] = sigmoid(C2[i] + B2[i])
+
+	# Pooling 2
+	for i in range(S2.shape[0]):
+		S2[i] = pooling(C2[i], S2[i])
+
+	# Vectorization
+	F = vectorize(S2)
+
+	# Fully Connected
+	y_hat = sigmoid(fully_connected(F, W, B))
+
+	# Prediction:
+	p = np.argmax(y_hat)
+	a = np.argmax(y)
+	print("Predicted: {} - {}".format(p, y_hat))
+	print("Actual: {} - {}".format(a, y))
+	if p == a:
+		correct += 1
+	else:
+		incorrect += 1
+
+print(correct)
+print(incorrect)
+
+################################################################################
 # Test convolution.
 def baseline_convolution(in_mat, kernel, out_mat):
     s = kernel.shape + tuple(np.subtract(in_mat.shape, kernel.shape) + 1)
@@ -406,141 +532,3 @@ print(convolution(in_mat, np.rot90(kernel, 2), out_mat))
 print(correlation(in_mat, kernel, out_mat))
 
 sys.exit()
-
-# Check for syntatical correctness (not logical correctness yet).
-BATCH_SIZE = 100
-EPOCHS = 200
-print("Batch size: {}, Epochs: {}".format(BATCH_SIZE, EPOCHS))
-
-for e in range(EPOCHS):
-	print("Epoch {}".format(e))
-
-	avg_delta_K1 = np.zeros(K1.shape)
-	avg_delta_B1 = np.zeros(B1.shape)
-	avg_delta_K2 = np.zeros(K2.shape)
-	avg_delta_B2 = np.zeros(B2.shape)
-	avg_delta_W = np.zeros(W.shape)
-	avg_delta_B = np.zeros(B.shape)
-
-	for s in range(BATCH_SIZE):
-		I = x_train[e * BATCH_SIZE + s]
-		y = y_train[e * BATCH_SIZE + s]
-
-		# Convolution 1
-		for i in range(C1.shape[0]):
-			C1[i] = convolution(I, K1[0][i], C1[i])
-			C1[i] = sigmoid(C1[i] + B1[i])
-
-		# Pooling 1
-		for i in range(S1.shape[0]):
-			S1[i] = pooling(C1[i], S1[i])
-
-		# Convolution 2
-		for i in range(C2.shape[0]):
-			temp = np.zeros(C2[i].shape)
-			for j in range(S1.shape[0]):
-				temp = convolution(S1[j], K2[j][i], temp)
-				C2[i] += temp
-			C2[i] = sigmoid(C2[i] + B2[i])
-
-		# Pooling 2
-		for i in range(S2.shape[0]):
-			S2[i] = pooling(C2[i], S2[i])
-
-		# Vectorization
-		F = vectorize(S2)
-
-		# Fully Connected
-		y_hat = sigmoid(fully_connected(F, W, B))
-
-		if s % 10 == 0:
-			print("Loss: {}".format(loss(y, y_hat)))
-
-		delta_y_hat = find_delta_y_hat(y.reshape(10, 1), y_hat)
-		delta_W = find_delta_W(delta_y_hat, F)
-		delta_B = find_delta_B(delta_y_hat)
-
-		delta_F = find_delta_F(W, delta_y_hat)
-
-		delta_S2 = find_delta_S2(delta_F)
-		delta_C2 = find_delta_C2(delta_S2)
-		delta_C2_sigma = find_delta_C2_sigma(delta_C2, C2)
-		delta_K2 = find_delta_K2(delta_C2_sigma, S1)
-		delta_B2 = find_delta_B2(delta_C2_sigma)
-
-		delta_S1 = find_delta_S1(delta_C2_sigma, K2)
-		delta_C1 = find_delta_C1(delta_S1)
-		delta_C1_sigma = find_delta_C1_sigma(delta_C1, C1)
-		delta_K1 = find_delta_K1(delta_C1_sigma, I)
-		delta_B1 = find_delta_B1(delta_C1_sigma)
-
-		avg_delta_K1 += delta_K1
-		avg_delta_B1 += delta_B1
-		avg_delta_K2 += delta_K2
-		avg_delta_B2 += delta_B2
-		avg_delta_W += delta_W
-		avg_delta_B += delta_B
-
-	avg_delta_K1 /= BATCH_SIZE
-	avg_delta_B1 /= BATCH_SIZE
-	avg_delta_K2 /= BATCH_SIZE
-	avg_delta_B2 /= BATCH_SIZE
-	avg_delta_W /= BATCH_SIZE
-	avg_delta_B /= BATCH_SIZE
-
-	K1, B1, K2, B2, W, B = update_parameters(K1, avg_delta_K1,
-											 B1, avg_delta_B1,
-											 K2, avg_delta_K2,
-											 B2, avg_delta_B2,
-											 W, avg_delta_W,
-											 B, avg_delta_B,
-											 0.2)
-
-# Finished training. Try on first 20 sampes.
-correct = 0
-incorrect = 0
-for s in range(20):
-	if s % 50 == 0:
-		print("Epoch {}".format(s))
-	I = x_train[s]
-	y = y_train[s]
-
-	# Convolution 1
-	for i in range(C1.shape[0]):
-		C1[i] = convolution(I, K1[0][i], C1[i])
-		C1[i] = sigmoid(C1[i] + B1[i])
-
-	# Pooling 1
-	for i in range(S1.shape[0]):
-		S1[i] = pooling(C1[i], S1[i])
-
-	# Convolution 2
-	for i in range(C2.shape[0]):
-		temp = np.zeros(C2[i].shape)
-		for j in range(S1.shape[0]):
-			temp = convolution(S1[j], K2[j][i], temp)
-			C2[i] += temp
-		C2[i] = sigmoid(C2[i] + B2[i])
-
-	# Pooling 2
-	for i in range(S2.shape[0]):
-		S2[i] = pooling(C2[i], S2[i])
-
-	# Vectorization
-	F = vectorize(S2)
-
-	# Fully Connected
-	y_hat = sigmoid(fully_connected(F, W, B))
-
-	# Prediction:
-	p = np.argmax(y_hat)
-	a = np.argmax(y)
-	print("Predicted: {} - {}".format(p, y_hat))
-	print("Actual: {} - {}".format(a, y))
-	if p == a:
-		correct += 1
-	else:
-		incorrect += 1
-
-print(correct)
-print(incorrect)
