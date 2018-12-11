@@ -9,145 +9,179 @@ class CNN:
 #~~~~~~~~~~~~~~~~~~~~~~~~~~ INITIALIZING PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-	# Load MNIST dataset.
-	def load_MNIST(self):
-		sys.stderr = open(os.devnull, 'w') # Disable stderr.
-		from keras.datasets import mnist
-		(self.x_train, self.y_train), (self.x_test, self.y_test) = mnist.load_data()
-		self.y_train = self.convert_to_one_hot(self.y_train)
-		self.y_test = self.convert_to_one_hot(self.y_test)
-		sys.stderr = sys.__stderr__ # Enable stderr.
+  # Load MNIST dataset.
+  def load_MNIST(self):
+    sys.stderr = open(os.devnull, 'w') # Disable stderr.
+    from keras.datasets import mnist
+    (self.x_train, self.y_train), (self.x_test, self.y_test) = mnist.load_data()
+    self.y_train = self.convert_to_one_hot(self.y_train)
+    self.y_test = self.convert_to_one_hot(self.y_test)
+    sys.stderr = sys.__stderr__ # Enable stderr.
 
-	# Convert labels to one-hot (10 x 1) vectors.
-	def convert_to_one_hot(self, labels):
-			labels_vecs = np.zeros((labels.size, 10))
-			labels_vecs[np.arange(labels.size), labels] = 1
-			return labels_vecs
+  # Convert labels to one-hot (10 x 1) vectors.
+  def convert_to_one_hot(self, labels):
+      labels_vecs = np.zeros((labels.size, 10))
+      labels_vecs[np.arange(labels.size), labels] = 1
+      return labels_vecs
 
-	# Initialize an array of a certain shape so that its values are uniformly
-	# distributed on [-bound, bound].
-	def initialize_uniformly(self, shape, bound):
-		return self.scale_to_bound(np.random.rand(*shape), bound)
+  # Initialize an array of a certain shape so that its values are uniformly
+  # distributed on [-bound, bound].
+  def initialize_uniformly(self, shape, bound):
+    return self.scale_to_bound(np.random.rand(*shape), bound)
 
-	# Given an array of values uniformly distributed on [0, 1], scale these values
-	# so that they are uniformly distributed on [-bound, bound].
-	def scale_to_bound(self, arr, bound):
-		return arr * 2 * bound - bound
+  # Given an array of values uniformly distributed on [0, 1], scale these values
+  # so that they are uniformly distributed on [-bound, bound].
+  def scale_to_bound(self, arr, bound):
+    return arr * 2 * bound - bound
 
-	def __init__(self):
-		#################################
-		########## Load Inputs ##########
-		#################################
-		self.x_train = None
-		self.y_train = None
-		self.x_test = None
-		self.y_test = None
-		self.load_MNIST()
+  def __init__(self):
+    #################################
+    ########## Load Inputs ##########
+    #################################
+    self.x_train = None
+    self.y_train = None
+    self.x_test = None
+    self.y_test = None
+    self.load_MNIST()
 
-		# Input holder has the shape of one data point from training/testing data.
-		self.I = np.zeros(self.x_train[0].shape)
+    # Input holder has the shape of one data point from training/testing data.
+    self.I = np.zeros(self.x_train[0].shape)
 
-		#################################
-		##### Convolutional Layer 1 #####
-		#################################
-		# (1 x 6) kernels of size (5 x 5).
-		K1_shape = (1, 6, 5, 5)
-		K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
-		self.K1 = self.initialize_uniformly(K1_shape, K1_bound)
+    #################################
+    ##### Convolutional Layer 1 #####
+    #################################
+    # (1 x 6) kernels of size (5 x 5).
+    K1_shape = (1, 6, 5, 5)
+    K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
+    self.K1 = self.initialize_uniformly(K1_shape, K1_bound)
 
-		# 6 biases.
-		self.B1 = np.zeros((6, 1))
+    # 6 biases.
+    self.B1 = np.zeros((6, 1))
 
-		# 6 convolution outputs of size (24 x 24).
-		self.C1 = np.zeros((6, 24, 24))
+    # 6 convolution outputs of size (24 x 24).
+    self.C1 = np.zeros((6, 24, 24))
 
-		#################################
-		#####    Pooling Layer 1    #####
-		#################################
-		# 6 sampling outputs of size (12 x 12).
-		self.S1 = np.zeros((6, 12, 12))
+    #################################
+    #####    Pooling Layer 1    #####
+    #################################
+    # 6 sampling outputs of size (12 x 12).
+    self.S1 = np.zeros((6, 12, 12))
 
-		#################################
-		##### Convolutional Layer 2 #####
-		#################################
-		# (6 x 12) kernels of size (5 x 5).
-		K2_shape = (6, 12, 5, 5)
-		K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
-		self.K2 = self.initialize_uniformly(K2_shape, K2_bound)
+    #################################
+    ##### Convolutional Layer 2 #####
+    #################################
+    # (6 x 12) kernels of size (5 x 5).
+    K2_shape = (6, 12, 5, 5)
+    K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
+    self.K2 = self.initialize_uniformly(K2_shape, K2_bound)
 
-		# 12 biases.
-		self.B2 = np.zeros((12, 1))
+    # 12 biases.
+    self.B2 = np.zeros((12, 1))
 
-		# 12 convolution outputs of size (8 x 8).
-		self.C2 = np.zeros((12, 8, 8))
+    # 12 convolution outputs of size (8 x 8).
+    self.C2 = np.zeros((12, 8, 8))
 
-		#################################
-		#####    Pooling Layer 2    #####
-		#################################
-		# 12 sampling outputs of size (4 x 4).
-		self.S2 = np.zeros((12, 4, 4))
+    #################################
+    #####    Pooling Layer 2    #####
+    #################################
+    # 12 sampling outputs of size (4 x 4).
+    self.S2 = np.zeros((12, 4, 4))
 
-		#################################
-		##### Fully Connected Layer #####
-		#################################
-		# Vectorization of 12 matrices of size (4 x 4) to a vector of size 192.
-		self.F = np.zeros((192, 1))
+    #################################
+    ##### Fully Connected Layer #####
+    #################################
+    # Vectorization of 12 matrices of size (4 x 4) to a vector of size 192.
+    self.F = np.zeros((192, 1))
 
-		# 10 weights of size 192.
-		W_shape = (10, 192)
-		W_bound = np.sqrt(6 / (192 + 10))
-		self.W = self.initialize_uniformly(W_shape, W_bound)
+    # 10 weights of size 192.
+    W_shape = (10, 192)
+    W_bound = np.sqrt(6 / (192 + 10))
+    self.W = self.initialize_uniformly(W_shape, W_bound)
 
-		# 10 biases.
-		self.B = np.zeros((10, 1))
+    # 10 biases.
+    self.B = np.zeros((10, 1))
 
-		# 10 output classes.
-		self.Y = np.zeros((10, 1))
+    # 10 output classes.
+    self.Y = np.zeros((10, 1))
 
-		self.foo = 1
-
-	#################################
-	#####      Correlation      #####
-	##### (padding is not used) #####
-	#################################
-	def correlation(self, input_name, kernel_name, output_name):
-
-		# Get input, kernel, and output attributes.
-		I = getattr(self, input_name)
-		K = getattr(self, kernel_name)
-		O = getattr(self, output_name)
-
-		# Get the shapes of input, kernel, and output matrices.
-		x_i, y_i = I.shape
-		x_k, y_k = K.shape
-		x_o, y_o = O.shape
-
-		# Verify the shape requirements for correlation with no padding.
-		assert(x_o == x_i - x_k + 1)
-		assert(y_o == y_i - y_k + 1)
-
-		# REFERENCE FORMULA: (1)
-		# Iterate through output image.
-		for i in range(x_o):
-			for j in range(y_o):
-				# Iterate through kernel.
-				for u in range(x_k):
-					for v in range(y_k):
-						O[i][j] += in_mat[i + u][j + v] * K[u][v]
-
-		# Update output.
-		setattr(self, output_name, O)
+    self.foo = 1
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UNIVERSAL FUNCTIONS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
+  #################################
+  #####      Correlation      #####
+  ##### (padding is not used) #####
+  #################################
+  def correlation(self, input_name, kernel_name, output_name):
+
+    # Get input, kernel, and output matrices.
+    I = getattr(self, input_name)
+    K = getattr(self, kernel_name)
+    O = getattr(self, output_name)
+
+    # REFERENCE FORMULA: (5)
+    # Verify the shape requirements for correlation with no padding.
+    x_i, y_i = I.shape
+    x_k, y_k = K.shape
+    x_o, y_o = O.shape
+    assert(x_o == x_i - x_k + 1)
+    assert(y_o == y_i - y_k + 1)
+
+    # REFERENCE FORMULA: (1)
+    # Iterate through output matrix.
+    for i in range(x_o):
+      for j in range(y_o):
+        # Iterate through kernel.
+        for u in range(x_k):
+          for v in range(y_k):
+            O[i][j] += I[i + u][j + v] * K[u][v]
+
+    # Update output.
+    setattr(self, output_name, O)
+
+  #################################
+  #####      Convolution      #####
+  #####   (padding is used)   #####
+  #################################
+  def convolution(self, input_name, kernel_name, output_name):
+
+    # Get input, kernel, and output matrices.
+    I = getattr(self, input_name)
+    K = getattr(self, kernel_name)
+    O = getattr(self, output_name)
+
+    # REFERENCE FORMULA: (6)
+    # Verify the shape requirements for correlation with no padding.
+    x_i, y_i = I.shape
+    x_k, y_k = K.shape
+    x_o, y_o = O.shape
+    assert(x_o == x_i + x_k - 1)
+    assert(y_o == y_i + y_k - 1)
+
+    # REFERENCE FORMULA: (3) + (4)
+    # Iterate through output matrix.
+    for i in range(x_o):
+      for j in range(y_o):
+        # Iterate through kernel.
+        for u in range(x_k):
+          for v in range(y_k):
+            # Only care about indices within the bounds of input matrix
+            # (because those outside the bounds are 0 anyway).
+            if ((0 <= i - u) and (i - u <= x_i - 1) and
+                (0 <= j - v) and (j - v <= y_i - 1)):
+              O[i][j] += I[i - u][j - v] * K[u][v]
+
+    # Update output.
+    setattr(self, output_name, O)
+
 print("Correlation Test")
 
 myCNN = CNN()
-myCNN.I = in_mat = np.random.rand(5, 4)
-myCNN.C1 = out_mat = np.zeros((4, 2))
-myCNN.K = kernel = np.random.rand(2, 3)
+myCNN.I = in_mat = np.random.rand(8, 8)
+myCNN.C1 = out_mat = np.zeros((12, 12))
+myCNN.K = kernel = np.random.rand(5, 5)
 print("Input")
 print(in_mat)
 print("Kernel")
@@ -156,11 +190,11 @@ print(kernel)
 def baseline_convolution(in_mat, kernel, out_mat):
     s = kernel.shape + tuple(np.subtract(in_mat.shape, kernel.shape) + 1)
     subM = np.lib.stride_tricks.as_strided(
-		in_mat, shape = s, strides = in_mat.strides * 2)
+    in_mat, shape = s, strides = in_mat.strides * 2)
     return np.einsum("ij,ijkl->kl", kernel, subM)
 print("Baseline:")
-print(baseline_convolution(in_mat, kernel, out_mat))
+print(baseline_convolution(in_mat, np.rot90(kernel, 2), out_mat))
 
 print("Mine:")
-myCNN.correlation("I", "K", "C1")
-print(myCNN.C1)
+myCNN.convolution("I", "K", "C1")
+print(myCNN.C1[4:8, 4:8]) # The baseline convolution does not use padding.
