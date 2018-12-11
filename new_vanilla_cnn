@@ -58,8 +58,9 @@ class CNN:
     # 6 biases.
     self.B1 = np.zeros((6, 1))
 
-    # 6 convolution outputs of size (24 x 24).
+    # 6 convolution outputs of size (24 x 24), before and after sigmoid.
     self.C1 = np.zeros((6, 24, 24))
+    self.C1_sigma = np.zeros(self.C1.shape)
 
     #################################
     #####    Pooling Layer 1    #####
@@ -78,8 +79,9 @@ class CNN:
     # 12 biases.
     self.B2 = np.zeros((12, 1))
 
-    # 12 convolution outputs of size (8 x 8).
+    # 12 convolution outputs of size (8 x 8), before and after sigmoid.
     self.C2 = np.zeros((12, 8, 8))
+    self.C2_sigma = np.zeros(self.C2.shape)
 
     #################################
     #####    Pooling Layer 2    #####
@@ -176,9 +178,55 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
+  #################################
+  #####        Sigmoid        #####
+  #################################
+  
+  def sigmoid(self, input_name, output_name):
+
+    # Get input and output matrices.
+    I = getattr(self, input_name)
+    O = getattr(self, output_name)
+    assert(O.shape == I.shape)
+
+    # REFERENCE FORMULA: (7)
+    O = 1 / (1 + np.exp(-I))
+
+    # Update output.
+    setattr(self, output_name, O)
+
+  # REFERENCE FORMULA: (8)
+  def sigmoid_derivative(self, input_name, output_name):
+    
+    # Get input and output matrices.
+    I = getattr(self, input_name)
+    O = getattr(self, output_name)
+    assert(O.shape == I.shape)
+
+    # REFERENCE FORMULA: (8)
+    O = np.multiply(I, (1 - I))
+
+    # Update output.
+    setattr(self, output_name, O)
+
+print("Sigmoid test")
+myCNN = CNN()
+myCNN.C1 = np.array([[-4, -3, -2, -1,  0],
+                    [-3, -2, -1,  0,  1],
+                    [-2, -1,  0,  1,  2],
+                    [-1,  0,  1,  2,  3],
+                    [ 0,  1,  2,  3,  4]])
+myCNN.C1_sigma = np.zeros(myCNN.C1.shape)
+print(myCNN.C1)
+myCNN.sigmoid("C1", "C1_sigma")
+print(myCNN.C1_sigma)
+myCNN.sigmoid_derivative("C1_sigma", "C1")
+print(myCNN.C1)
+
+sys.exit()
+
 print("Correlation Test")
 
-myCNN = CNN()
 myCNN.I = in_mat = np.random.rand(8, 8)
 myCNN.C1 = out_mat = np.zeros((12, 12))
 myCNN.K = kernel = np.random.rand(5, 5)
