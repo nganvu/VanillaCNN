@@ -532,9 +532,6 @@ for e in range(myCNN.epochs):
             i + 1, myCNN.batch_size, myCNN.L), end='\r')
       sys.stdout.flush()
     print()
-    # print(myCNN.batch_L)
-    # print(myCNN.Y)
-    # print(myCNN.Y_hat_sigma)
     myCNN.update_parameters()
-    myCNN.evaluate_test()
+  myCNN.evaluate_test()
     
