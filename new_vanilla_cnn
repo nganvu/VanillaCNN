@@ -244,36 +244,13 @@ class CNN:
   ###########################################
   #####             Sigmoid             #####
   ###########################################
-  def sigmoid(self, input_name, output_name):
-
-    # Get input and output.
-    I = getattr(self, input_name)
-    O = getattr(self, output_name)
+  def sigmoid(self, I, O):
 
     # Verify the shapes are consistent.
     assert(O.shape == I.shape)
 
     # REFERENCE FORMULA: (7)
-    O = 1 / (1 + np.exp(-I))
-
-    # Update output.
-    setattr(self, output_name, O)
-
-  # # REFERENCE FORMULA: (8)
-  # def sigmoid_derivative(self, input_name, output_name):
-
-  #   # Get input and output.
-  #   I = getattr(self, input_name)
-  #   O = getattr(self, output_name)
-
-  #   # Verify the shapes are consistent.
-  #   assert(O.shape == I.shape)
-
-  #   # REFERENCE FORMULA: (8)
-  #   O = np.multiply(I, (1 - I))
-
-  #   # Update output.
-  #   setattr(self, output_name, O)
+    np.copyto(O, 1 / (1 + np.exp(-I)))
 
   ###########################################
   #####             Pooling             #####
@@ -437,7 +414,7 @@ class CNN:
     ######      Convolution Layer 1      ######
     ###########################################
     self.correlation_ff(self.X, self.K1, self.B1, self.C1)
-    self.sigmoid("C1", "C1_sigma")
+    self.sigmoid(self.C1, self.C1_sigma)
 
     ###########################################
     ######        Pooling Layer 1        ######
@@ -448,7 +425,7 @@ class CNN:
     ######      Convolution Layer 2      ######
     ###########################################
     self.correlation_ff(self.S1, self.K2, self.B2, self.C2)
-    self.sigmoid("C2", "C2_sigma")
+    self.sigmoid(self.C2, self.C2_sigma)
 
     ###########################################
     ######        Pooling Layer 2        ######
@@ -464,7 +441,7 @@ class CNN:
     ######     Fully Connected Layer     ######
     ###########################################
     self.fully_connected("V", "W", "B", "Y_hat")
-    self.sigmoid("Y_hat", "Y_hat_sigma")
+    self.sigmoid(self.Y_hat, self.Y_hat_sigma)
 
     ###########################################
     #####          Loss Function          #####
