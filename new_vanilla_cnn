@@ -35,6 +35,7 @@ class CNN:
     return arr * 2 * bound - bound
 
   def __init__(self):
+
     ###########################################
     #####           Load Inputs           #####
     ###########################################
@@ -135,7 +136,6 @@ class CNN:
   #####           Correlation           #####
   #####      (padding is not used)      #####
   ###########################################
-
   def correlation(self, input_name, kernel_name, bias_name, output_name):
 
     # Get input, kernel, bias, and output.
@@ -178,7 +178,7 @@ class CNN:
               for v in range(y_k):
                 O[i][j] += I[i + u][j + v] * K[u][v]
 
-        all_O[q] = O
+        all_O[q] = O + B
 
     # Update output.
     setattr(self, output_name, all_O)
@@ -187,35 +187,31 @@ class CNN:
   #####           Convolution           #####
   #####        (padding is used)        #####
   ###########################################
-
   def convolution(self, input_name, kernel_name, output_name):
 
     # Get input, kernel, bias, and output.
     all_I = getattr(self, input_name)
     all_K = getattr(self, kernel_name)
-    all_B = getattr(self, bias_name)
     all_O = getattr(self, output_name)
     
     num_I = all_I.shape[0]
-    num_K = (all_K.shape[0], all_K.shape[1])
-    num_B = all_B.shape[0]
-    num_O = all_O.shape[0]
-    assert(num_I == num_K[0])
-    assert(num_O == num_K[1] == num_B)
-    assert(all_B.shape[1] == 1)
+    num_K = all_K.shape[0]
+    num_O = (all_O.shape[0], all_O.shape[1])
+    assert(num_I == num_O[0])
+    assert(num_K == num_O[1])
 
     for p in range(num_I):
-      for q in range(num_O):
+      for q in range(num_K):
         I = all_I[p]
-        K = all_K[p][q]
-        B = all_B[q]
-        O = all_O[q]
+        K = all_K[q]
+        O = all_O[p][q]
     
         # REFERENCE FORMULA: (6)
         # Verify the shape requirements for correlation with no padding.
         x_i, y_i = I.shape
         x_k, y_k = K.shape
         x_o, y_o = O.shape
+        print(I.shape, K.shape, O.shape)
         assert(x_o == x_i + x_k - 1)
         assert(y_o == y_i + y_k - 1)
 
@@ -233,7 +229,7 @@ class CNN:
                     (0 <= j - v) and (j - v <= y_i - 1)):
                   O[i][j] += I[i - u][j - v] * K[u][v]
 
-        all_O[q] = O
+        all_O[p][q] = O
             
     # Update output.
     setattr(self, output_name, O)
@@ -241,7 +237,6 @@ class CNN:
   ###########################################
   #####             Sigmoid             #####
   ###########################################
-  
   def sigmoid(self, input_name, output_name):
 
     # Get input and output.
@@ -257,21 +252,21 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
-  # REFERENCE FORMULA: (8)
-  def sigmoid_derivative(self, input_name, output_name):
+  # # REFERENCE FORMULA: (8)
+  # def sigmoid_derivative(self, input_name, output_name):
     
-    # Get input and output.
-    I = getattr(self, input_name)
-    O = getattr(self, output_name)
+  #   # Get input and output.
+  #   I = getattr(self, input_name)
+  #   O = getattr(self, output_name)
 
-    # Verify the shapes are consistent.
-    assert(O.shape == I.shape)
+  #   # Verify the shapes are consistent.
+  #   assert(O.shape == I.shape)
 
-    # REFERENCE FORMULA: (8)
-    O = np.multiply(I, (1 - I))
+  #   # REFERENCE FORMULA: (8)
+  #   O = np.multiply(I, (1 - I))
 
-    # Update output.
-    setattr(self, output_name, O)
+  #   # Update output.
+  #   setattr(self, output_name, O)
 
   ###########################################
   #####             Pooling             #####
@@ -307,6 +302,37 @@ class CNN:
           for u in range(1):
             for v in range(1):
               O[i][j] += 0.25 * (I[2*i + u][2*j + v])
+
+      all_O[p] = O
+
+    # Update output.
+    setattr(self, output_name, all_O)
+
+  def unpooling(self, input_name, output_name):
+
+    # Get input and output.
+    all_I = getattr(self, input_name)
+    all_O = getattr(self, output_name)
+
+    num_I = all_I.shape[0]
+    num_O = all_O.shape[0]
+    assert(num_I == num_O)
+
+    for p in range(num_I):
+      I = all_I[p]
+      O = all_O[p]
+
+      # Ensure the side length of output is twice the side length of the input.
+      x_i, y_i = I.shape
+      x_o, y_o = O.shape
+      assert(x_o == 2 * x_i)
+      assert(y_o == 2 * y_i)
+
+      # REFERENCE FORMULA: (55) + (83)
+      # Iterate through the output image.
+      for i in range(x_o):
+        for j in range(y_o):
+          O[i][j] = 0.25 * I[int(i / 2)][int(j / 2)]
 
       all_O[p] = O
 
@@ -442,5 +468,41 @@ class CNN:
     print(self.Y_hat_sigma)
     print(self.L)
 
+  def back_propagation(self):
+    ###########################################
+    #####          Loss Function          #####
+    ###########################################
+    self.delta_Y_hat_sigma = self.Y_hat_sigma - self.Y
+    self.delta_Y_hat = np.multiply(
+      self.delta_Y_hat_sigma,
+      np.multiply(self.Y_hat_sigma, 1 - self.Y_hat_sigma)
+    )
+
+    ###########################################
+    ######     Fully Connected Layer     ######
+    ###########################################
+    self.delta_W = self.delta_Y_hat.dot(self.V.T)
+    self.delta_B = self.delta_Y_hat
+
+    ###########################################
+    ######         Vectorization         ######
+    ###########################################
+    self.delta_V = self.W.T.dot(self.delta_Y_hat)
+
+    ###########################################
+    ######        Pooling Layer 2        ######
+    ###########################################
+    self.unvectorize("delta_V", "delta_S2")
+
+    ###########################################
+    ######      Convolution Layer 2      ######
+    ###########################################
+    self.unpooling("delta_S2", "delta_C2_sigma")
+    self.delta_C2 = np.multiply(
+      self.delta_C2_sigma,
+      np.multiply(self.C2_sigma, 1 - self.C2_sigma)
+    )
+
 myCNN = CNN()
 myCNN.feed_forward(myCNN.X_train[0], myCNN.Y_train[0])
+myCNN.back_propagation()
