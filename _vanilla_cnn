@@ -11,14 +11,16 @@ class CNN:
 
   # Load MNIST dataset.
   def load_MNIST(self):
-    # sys.stderr = open(os.devnull, 'w') # Disable stderr.
+    sys.stderr = open(os.devnull, 'w') # Disable stderr.
     from keras.datasets import mnist
     (self.X_train, self.Y_train), (self.X_test, self.Y_test) = mnist.load_data()
+    self.num_trains = self.X_train.shape[0]
+    self.num_tests = self.X_test.shape[0]
     self.X_train = self.X_train.astype('float32') / 255
     self.X_test = self.X_test.astype('float32') / 255
     self.Y_train = self.convert_to_one_hot(self.Y_train)
     self.Y_test = self.convert_to_one_hot(self.Y_test)
-    # sys.stderr = sys.__stderr__ # Enable stderr.
+    sys.stderr = sys.__stderr__ # Enable stderr.
 
   # Convert labels to one-hot (10 x 1) vectors.
   def convert_to_one_hot(self, labels):
@@ -43,8 +45,10 @@ class CNN:
     ###########################################
     self.X_train = None
     self.Y_train = None
+    self.num_trains = None
     self.X_test = None
     self.Y_test = None
+    self.num_tests = None
     self.load_MNIST()
 
     # Input (image of digits) and true output (label) holders.
@@ -54,7 +58,9 @@ class CNN:
 
     # Learning rates
     self.alpha = 1.0
-    self.batch_size = 10
+    self.batch_size = 30
+    self.batches = int(self.num_trains / self.batch_size)
+    self.epochs = 10
 
     ###########################################
     #####      Convolutional Layer 1      #####
@@ -486,19 +492,49 @@ class CNN:
     self.batch_delta_B  = 0.0
     self.batch_L = 0.0
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ EVALUATE ON TEST DATA ~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+  def evaluate_test(self):
+    accuracy = 0.0
+    test_size = 30
+    for i in range(test_size):
+      cur = np.random.randint(self.num_tests)
+      myCNN.feed_forward(
+        myCNN.X_test[cur],
+        myCNN.Y_test[cur]
+      )
+      prediction = np.argmax(myCNN.Y_hat_sigma)
+      truth = np.argmax(myCNN.Y)
+      accuracy += (prediction == truth)
+      print(">> Tested {} / {}".format(i + 1, test_size),
+            end=('\r' if i != test_size - 1 else ''))
+    print(". Test accuracy:", accuracy / test_size)
+
 myCNN = CNN()
-for i in range(100):
-  print("Iteration ", i)
-  for t in range(myCNN.batch_size):
-    cur = i * myCNN.batch_size + t
-    myCNN.feed_forward(
-      myCNN.X_train[cur],
-      myCNN.Y_train[cur]
-    )
-    myCNN.back_propagation()
-  print(myCNN.batch_L)
-  print(myCNN.Y)
-  print(myCNN.Y_hat_sigma)
-  myCNN.update_parameters()
-  if (i % 10 == 0):
-    myCNN.alpha *= 0.5
+print("Number of epochs", myCNN.epochs)
+print("Number of batches", myCNN.batches)
+print("Batch size", myCNN.batch_size)
+
+for e in range(myCNN.epochs):
+  print("EPOCH {} / {} ========================================".format(
+        e + 1, myCNN.epochs))
+  for b in range(myCNN.batches):
+    print("BATCH {} / {} ----------".format(b + 1, myCNN.batches))
+    for i in range(myCNN.batch_size):
+      cur = b * myCNN.batch_size + i
+      myCNN.feed_forward(
+        myCNN.X_train[cur],
+        myCNN.Y_train[cur]
+      )
+      myCNN.back_propagation()
+      print(">> Trained {} / {}. Loss: {}".format(
+            i + 1, myCNN.batch_size, myCNN.L), end='\r')
+      sys.stdout.flush()
+    print()
+    # print(myCNN.batch_L)
+    # print(myCNN.Y)
+    # print(myCNN.Y_hat_sigma)
+    myCNN.update_parameters()
+    myCNN.evaluate_test()
+    
