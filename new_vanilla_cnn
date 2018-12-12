@@ -189,32 +189,50 @@ class CNN:
 
   def convolution(self, input_name, kernel_name, output_name):
 
-    # Get input, kernel, and output.
-    I = getattr(self, input_name)
-    K = getattr(self, kernel_name)
-    O = getattr(self, output_name)
+    # Get input, kernel, bias, and output.
+    all_I = getattr(self, input_name)
+    all_K = getattr(self, kernel_name)
+    all_B = getattr(self, bias_name)
+    all_O = getattr(self, output_name)
     
-    # REFERENCE FORMULA: (6)
-    # Verify the shape requirements for correlation with no padding.
-    x_i, y_i = I.shape
-    x_k, y_k = K.shape
-    x_o, y_o = O.shape
-    assert(x_o == x_i + x_k - 1)
-    assert(y_o == y_i + y_k - 1)
+    num_I = all_I.shape[0]
+    num_K = (all_K.shape[0], all_K.shape[1])
+    num_B = all_B.shape[0]
+    num_O = all_O.shape[0]
+    assert(num_I == num_K[0])
+    assert(num_O == num_K[1] == num_B)
+    assert(all_B.shape[1] == 1)
 
-    # REFERENCE FORMULA: (3) + (4)
-    # Iterate through output matrix.
-    for i in range(x_o):
-      for j in range(y_o):
-        O[i][j] = 0
-        # Iterate through kernel.
-        for u in range(x_k):
-          for v in range(y_k):
-            # Only care about indices within the bounds of input matrix
-            # (because those outside the bounds are 0 anyway).
-            if ((0 <= i - u) and (i - u <= x_i - 1) and
-                (0 <= j - v) and (j - v <= y_i - 1)):
-              O[i][j] += I[i - u][j - v] * K[u][v]
+    for p in range(num_I):
+      for q in range(num_O):
+        I = all_I[p]
+        K = all_K[p][q]
+        B = all_B[q]
+        O = all_O[q]
+    
+        # REFERENCE FORMULA: (6)
+        # Verify the shape requirements for correlation with no padding.
+        x_i, y_i = I.shape
+        x_k, y_k = K.shape
+        x_o, y_o = O.shape
+        assert(x_o == x_i + x_k - 1)
+        assert(y_o == y_i + y_k - 1)
+
+        # REFERENCE FORMULA: (3) + (4)
+        # Iterate through output matrix.
+        for i in range(x_o):
+          for j in range(y_o):
+            O[i][j] = 0
+            # Iterate through kernel.
+            for u in range(x_k):
+              for v in range(y_k):
+                # Only care about indices within the bounds of input matrix
+                # (because those outside the bounds are 0 anyway).
+                if ((0 <= i - u) and (i - u <= x_i - 1) and
+                    (0 <= j - v) and (j - v <= y_i - 1)):
+                  O[i][j] += I[i - u][j - v] * K[u][v]
+
+        all_O[q] = O
             
     # Update output.
     setattr(self, output_name, O)
