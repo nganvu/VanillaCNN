@@ -160,7 +160,7 @@ class CNN:
           for v in range(y_k):
             O[i][j] += I[i + u][j + v] * K[u][v]
 
-  def correlation_wrapper_ff(self, all_I, all_K, all_B, all_O):
+  def correlation_wrapper_feedfrwd(self, all_I, all_K, all_B, all_O):
     num_I = all_I.shape[0]
     num_K = (all_K.shape[0], all_K.shape[1])
     num_B = all_B.shape[0]
@@ -177,7 +177,7 @@ class CNN:
         # Add bias.
         all_O[q] += all_B[q]
 
-  def correlation_wrapper_bp(self, all_I, all_K, all_O):
+  def correlation_wrapper_backprop(self, all_I, all_K, all_O):
     num_I = all_I.shape[0]
     num_K = all_K.shape[0]
     num_O = (all_O.shape[0], all_O.shape[1])
@@ -194,52 +194,46 @@ class CNN:
   #####           Convolution           #####
   #####        (padding is used)        #####
   ###########################################
-  def convolution(self, input_name, kernel_name, output_name):
+  def convolution(self, I, K, O):
 
-    # Get input, kernel, bias, and output.
-    all_I = getattr(self, input_name)
-    all_K = getattr(self, kernel_name)
-    all_O = getattr(self, output_name)
-    
+    # REFERENCE FORMULA: (6)
+    # Verify the shape requirements for correlation with no padding.
+    x_i, y_i = I.shape
+    x_k, y_k = K.shape
+    x_o, y_o = O.shape
+    assert(x_o == x_i + x_k - 1)
+    assert(y_o == y_i + y_k - 1)
+
+    # REFERENCE FORMULA: (3) + (4)
+    # Iterate through output matrix.
+    for i in range(x_o):
+      for j in range(y_o):
+        O[i][j] = 0
+        # Iterate through kernel.
+        for u in range(x_k):
+          for v in range(y_k):
+            # Only care about indices within the bounds of input matrix
+            # (because those outside the bounds are 0 anyway).
+            if ((0 <= i - u) and (i - u <= x_i - 1) and
+                (0 <= j - v) and (j - v <= y_i - 1)):
+              O[i][j] += I[i - u][j - v] * K[u][v]
+
+  def convolution_wrapper_backprop(self, all_I, all_K, all_O):
+
+    # REFERENCE FORMULA: (78)
     num_I = all_I.shape[0]
-    num_K = all_K.shape[0]
-    num_O = (all_O.shape[0], all_O.shape[1])
-    assert(num_I == num_O[0])
-    assert(num_K == num_O[1])
+    num_K = (all_K.shape[0], all_K.shape[1])
+    num_O = all_O.shape[0]
+    assert(num_I == num_K[1])
+    assert(num_O == num_K[0])
 
-    for p in range(num_I):
-      for q in range(num_K):
-        I = all_I[p]
-        K = all_K[q]
-        O = all_O[p][q]
-    
-        # REFERENCE FORMULA: (6)
-        # Verify the shape requirements for correlation with no padding.
-        x_i, y_i = I.shape
-        x_k, y_k = K.shape
-        x_o, y_o = O.shape
-        print(I.shape, K.shape, O.shape)
-        assert(x_o == x_i + x_k - 1)
-        assert(y_o == y_i + y_k - 1)
-
-        # REFERENCE FORMULA: (3) + (4)
-        # Iterate through output matrix.
-        for i in range(x_o):
-          for j in range(y_o):
-            O[i][j] = 0
-            # Iterate through kernel.
-            for u in range(x_k):
-              for v in range(y_k):
-                # Only care about indices within the bounds of input matrix
-                # (because those outside the bounds are 0 anyway).
-                if ((0 <= i - u) and (i - u <= x_i - 1) and
-                    (0 <= j - v) and (j - v <= y_i - 1)):
-                  O[i][j] += I[i - u][j - v] * K[u][v]
-
-        all_O[p][q] = O
-            
-    # Update output.
-    setattr(self, output_name, O)
+    for p in range(num_O):
+      all_O[p].fill(0)
+      temp_O = np.empty(all_O[p].shape)
+      for q in range(num_I):
+        self.convolution(all_I[p], all_K[p][q], temp_O)
+        assert(all_O[p].shape == temp_O.shape)
+        all_O[p] += temp_O
 
   ###########################################
   #####             Sigmoid             #####
@@ -368,7 +362,7 @@ class CNN:
     ###########################################
     ######      Convolution Layer 1      ######
     ###########################################
-    self.correlation_wrapper_ff(self.X, self.K1, self.B1, self.C1)
+    self.correlation_wrapper_feedfrwd(self.X, self.K1, self.B1, self.C1)
     self.sigmoid(self.C1, self.C1_sigma)
 
     ###########################################
@@ -379,7 +373,7 @@ class CNN:
     ###########################################
     ######      Convolution Layer 2      ######
     ###########################################
-    self.correlation_wrapper_ff(self.S1, self.K2, self.B2, self.C2)
+    self.correlation_wrapper_feedfrwd(self.S1, self.K2, self.B2, self.C2)
     self.sigmoid(self.C2, self.C2_sigma)
 
     ###########################################
@@ -438,8 +432,14 @@ class CNN:
       self.delta_C2_sigma,
       np.multiply(self.C2_sigma, 1 - self.C2_sigma)
     )
-    self.correlation_wrapper_bp(self.S1, self.delta_C2, self.delta_K2)
-    
+    self.correlation_wrapper_backprop(self.S1, self.delta_C2, self.delta_K2)
+    for q in range(self.delta_B2.shape[0]):
+      self.delta_B2[q] = np.sum(self.delta_C2_sigma[q])
+
+    ###########################################
+    ######        Pooling Layer 1        ######
+    ###########################################
+    self.convolution_wrapper_backprop(self.delta_C2, self.K2, self.delta_S1)
 
 myCNN = CNN()
 myCNN.feed_forward(myCNN.X_train[0], myCNN.Y_train[0])
