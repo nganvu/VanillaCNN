@@ -20,7 +20,7 @@ class CNN:
 
   # Convert labels to one-hot (10 x 1) vectors.
   def convert_to_one_hot(self, labels):
-      labels_vecs = np.zeros((labels.size, 10))
+      labels_vecs = np.zeros((labels.size, 10, 1))
       labels_vecs[np.arange(labels.size), labels] = 1
       return labels_vecs
 
@@ -35,21 +35,23 @@ class CNN:
     return arr * 2 * bound - bound
 
   def __init__(self):
-    #################################
-    ########## Load Inputs ##########
-    #################################
+    ###########################################
+    #####           Load Inputs           #####
+    ###########################################
     self.X_train = None
     self.Y_train = None
     self.X_test = None
     self.Y_test = None
     self.load_MNIST()
 
-    # Input holder has the shape of one data point from training/testing data.
+    # Input (image of digits) and true output (label) holders.
     self.X = np.zeros(self.X_train[0].shape)
+    self.Y = np.zeros(self.Y_train[0].shape)
+    self.X = np.expand_dims(self.X, axis=0)
     
-    #################################
-    ##### Convolutional Layer 1 #####
-    #################################
+    ###########################################
+    #####      Convolutional Layer 1      #####
+    ###########################################
     # (1 x 6) kernels of size (5 x 5).
     K1_shape = (1, 6, 5, 5)
     K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
@@ -66,16 +68,16 @@ class CNN:
     self.delta_C1 = np.zeros(self.C1.shape)
     self.delta_C1_sigma = np.zeros(self.C1_sigma.shape)
 
-    #################################
-    #####    Pooling Layer 1    #####
-    #################################
+    ###########################################
+    #####         Pooling Layer 1         #####
+    ###########################################
     # 6 sampling outputs of size (12 x 12).
     self.S1 = np.zeros((6, 12, 12))
     self.delta_S1 = np.zeros(self.S1.shape)
 
-    #################################
-    ##### Convolutional Layer 2 #####
-    #################################
+    ###########################################
+    #####      Convolutional Layer 2      #####
+    ###########################################
     # (6 x 12) kernels of size (5 x 5).
     K2_shape = (6, 12, 5, 5)
     K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
@@ -92,16 +94,16 @@ class CNN:
     self.delta_C2 = np.zeros(self.C2.shape)
     self.delta_C2_sigma = np.zeros(self.C2_sigma.shape)
 
-    #################################
-    #####    Pooling Layer 2    #####
-    #################################
+    ###########################################
+    #####         Pooling Layer 2         #####
+    ###########################################
     # 12 sampling outputs of size (4 x 4).
     self.S2 = np.zeros((12, 4, 4))
     self.delta_S2 = np.zeros(self.S2.shape)
 
-    #################################
-    ##### Fully Connected Layer #####
-    #################################
+    ###########################################
+    #####      Fully Connected Layer      #####
+    ###########################################
     # Vectorization of 12 matrices of size (4 x 4) to a vector of size 192.
     self.V = np.zeros((192, 1))
     self.delta_V = np.zeros(self.V.shape)
@@ -117,10 +119,10 @@ class CNN:
     self.delta_B = np.zeros(self.B.shape)
 
     # 10 output classes, before and after sigmoid.
-    self.Y = np.zeros((10, 1))
-    self.Y_sigma = np.zeros(self.Y.shape)
-    self.delta_Y = np.zeros(self.Y.shape)
-    self.delta_Y_sigma = np.zeros(self.delta_Y.shape)
+    self.Y_hat = np.zeros((10, 1))
+    self.Y_hat_sigma = np.zeros(self.Y_hat.shape)
+    self.delta_Y_hat = np.zeros(self.Y_hat.shape)
+    self.delta_Y_hat_sigma = np.zeros(self.delta_Y_hat.shape)
 
     # Loss.
     self.loss = 0.0
@@ -129,43 +131,61 @@ class CNN:
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UNIVERSAL FUNCTIONS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-  #################################
-  #####      Correlation      #####
-  ##### (padding is not used) #####
-  #################################
+  ###########################################
+  #####           Correlation           #####
+  #####      (padding is not used)      #####
+  ###########################################
 
-  def correlation(self, input_name, kernel_name, output_name):
+  def correlation(self, input_name, kernel_name, bias_name, output_name):
 
-    # Get input, kernel, and output.
-    I = getattr(self, input_name)
-    K = getattr(self, kernel_name)
-    O = getattr(self, output_name)
+    # Get input, kernel, bias, and output.
+    all_I = getattr(self, input_name)
+    all_K = getattr(self, kernel_name)
+    all_B = getattr(self, bias_name)
+    all_O = getattr(self, output_name)
     
-    # REFERENCE FORMULA: (5)
-    # Verify the shape requirements for correlation with no padding.
-    x_i, y_i = I.shape
-    x_k, y_k = K.shape
-    x_o, y_o = O.shape
-    assert(x_o == x_i - x_k + 1)
-    assert(y_o == y_i - y_k + 1)
+    num_I = all_I.shape[0]
+    num_K = (all_K.shape[0], all_K.shape[1])
+    num_B = all_B.shape[0]
+    num_O = all_O.shape[0]
+    assert(num_I == num_K[0])
+    assert(num_O == num_K[1] == num_B)
+    assert(all_B.shape[1] == 1)
 
-    # REFERENCE FORMULA: (1)
-    # Iterate through output matrix.
-    for i in range(x_o):
-      for j in range(y_o):
-        O[i][j] = 0
-        # Iterate through kernel.
-        for u in range(x_k):
-          for v in range(y_k):
-            O[i][j] += I[i + u][j + v] * K[u][v]
+    for p in range(num_I):
+      for q in range(num_O):
+        I = all_I[p]
+        K = all_K[p][q]
+        B = all_B[q]
+        O = all_O[q]
+
+        # REFERENCE FORMULA: (5)
+        # Verify the shape requirements for correlation with no padding.
+        x_i, y_i = I.shape
+        x_k, y_k = K.shape
+        x_o, y_o = O.shape
+        assert(x_o == x_i - x_k + 1)
+        assert(y_o == y_i - y_k + 1)
+
+        # REFERENCE FORMULA: (1)
+        # Iterate through output matrix.
+        for i in range(x_o):
+          for j in range(y_o):
+            O[i][j] = 0
+            # Iterate through kernel.
+            for u in range(x_k):
+              for v in range(y_k):
+                O[i][j] += I[i + u][j + v] * K[u][v]
+
+        all_O[q] = O
 
     # Update output.
-    setattr(self, output_name, O)
+    setattr(self, output_name, all_O)
 
-  #################################
-  #####      Convolution      #####
-  #####   (padding is used)   #####
-  #################################
+  ###########################################
+  #####           Convolution           #####
+  #####        (padding is used)        #####
+  ###########################################
 
   def convolution(self, input_name, kernel_name, output_name):
 
@@ -199,9 +219,9 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
-  #################################
-  #####        Sigmoid        #####
-  #################################
+  ###########################################
+  #####             Sigmoid             #####
+  ###########################################
   
   def sigmoid(self, input_name, output_name):
 
@@ -234,9 +254,9 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
-  #################################
-  #####        Pooling        #####
-  #################################
+  ###########################################
+  #####             Pooling             #####
+  ###########################################
   def pooling(self, input_name, output_name):
 
     # Get input and output.
@@ -264,9 +284,9 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
-  #################################
-  #####     Vectorization     #####
-  #################################
+  ###########################################
+  #####          Vectorization          #####
+  ###########################################
   def vectorize(self, input_name, output_name):
 
     # Get input and output.
@@ -305,9 +325,9 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
-  #################################
-  #####    Fully Connected    #####
-  #################################
+  ###########################################
+  #####         Fully Connected         #####
+  ###########################################
   def fully_connected(self, input_name, weight_name, bias_name, output_name):
     # Get input, weight, bias, and output.
     I = getattr(self, input_name)
@@ -325,9 +345,9 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
-  #################################
-  #####     Loss Function     #####
-  #################################
+  ###########################################
+  #####          Loss Function          #####
+  ###########################################
   def loss(self, truth_name, prediction_name, loss_name):
     # Get truth and prediction.
     truth = getattr(self, truth_name)
@@ -342,54 +362,51 @@ class CNN:
     # Update output.
     setattr(self, loss_name, L)
 
-print("Fully connected test")
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FEEDFORWARD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+  def feed_forward(self, X, Y):
+    assert(self.X[0].shape == X.shape)
+    assert(self.Y_hat.shape == Y.shape)
+
+    ###########################################
+    ######      Convolution Layer 1      ######
+    ###########################################
+
+    self.correlation("X", "K1", "B1", "C1")
+    self.sigmoid("C1", "C1_sigma")
+
+    # ###########################################
+    # ######        Pooling Layer 1        ######
+    # ###########################################
+    # for i in range(S1.shape[0]):
+    #   S1[i] = pooling(C1[i], S1[i])
+
+    # ###########################################
+    # ######      Convolution Layer 2      ######
+    # ###########################################
+    # for i in range(C2.shape[0]):
+    #   temp = np.zeros(C2[i].shape)
+    #   for j in range(S1.shape[0]):
+    #     temp = correlation(S1[j], K2[j][i], temp)
+    #     C2[i] += temp
+    #   C2[i] = sigmoid(C2[i] + B2[i])
+
+    # ###########################################
+    # ######        Pooling Layer 2        ######
+    # ###########################################
+    # for i in range(S2.shape[0]):
+    #   S2[i] = pooling(C2[i], S2[i])
+
+    # ###########################################
+    # ######         Vectorization         ######
+    # ###########################################
+    # F = vectorize(S2)
+
+    # ###########################################
+    # ######     Fully Connected Layer     ######
+    # ###########################################
+    # y_hat = sigmoid(fully_connected(F, W, B))
+
 myCNN = CNN()
-myCNN.V = np.random.rand(*myCNN.V.shape)
-myCNN.B = np.random.rand(*myCNN.B.shape)
-myCNN.fully_connected("V", "W", "B", "Y")
-print(myCNN.Y)
-
-print("Vectorize test")
-myCNN.S2 = np.random.rand(*myCNN.S2.shape)
-old_S2 = myCNN.S2
-myCNN.vectorize("S2", "V")
-myCNN.S2 = np.zeros(myCNN.S2.shape)
-myCNN.unvectorize("V", "S2")
-print(np.array_equal(old_S2, myCNN.S2))
-
-sys.exit()
-
-print("Sigmoid test")
-myCNN.C1 = np.array([[-4, -3, -2, -1,  0],
-                    [-3, -2, -1,  0,  1],
-                    [-2, -1,  0,  1,  2],
-                    [-1,  0,  1,  2,  3],
-                    [ 0,  1,  2,  3,  4]])
-myCNN.C1_sigma = np.zeros(myCNN.C1.shape)
-print(myCNN.C1)
-myCNN.sigmoid("C1", "C1_sigma")
-print(myCNN.C1_sigma)
-myCNN.sigmoid_derivative("C1_sigma", "C1")
-print(myCNN.C1)
-
-print("Correlation Test")
-
-myCNN.X = in_mat = np.random.rand(8, 8)
-myCNN.C1 = out_mat = np.zeros((12, 12))
-myCNN.K = kernel = np.random.rand(5, 5)
-print("Input")
-print(in_mat)
-print("Kernel")
-print(kernel)
-
-def baseline_convolution(in_mat, kernel, out_mat):
-    s = kernel.shape + tuple(np.subtract(in_mat.shape, kernel.shape) + 1)
-    subM = np.lib.stride_tricks.as_strided(
-    in_mat, shape = s, strides = in_mat.strides * 2)
-    return np.einsum("ij,ijkl->kl", kernel, subM)
-print("Baseline:")
-print(baseline_convolution(in_mat, np.rot90(kernel, 2), out_mat))
-
-print("Mine:")
-myCNN.convolution("I", "K", "C1")
-print(myCNN.C1[4:8, 4:8]) # The baseline convolution does not use padding.
+myCNN.feed_forward(myCNN.X_train[0], myCNN.Y_train[0])
