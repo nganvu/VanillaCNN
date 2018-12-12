@@ -11,12 +11,14 @@ class CNN:
 
   # Load MNIST dataset.
   def load_MNIST(self):
-    sys.stderr = open(os.devnull, 'w') # Disable stderr.
+    # sys.stderr = open(os.devnull, 'w') # Disable stderr.
     from keras.datasets import mnist
     (self.X_train, self.Y_train), (self.X_test, self.Y_test) = mnist.load_data()
+    self.X_train = self.X_train.astype('float32') / 255
+    self.X_test = self.X_test.astype('float32') / 255
     self.Y_train = self.convert_to_one_hot(self.Y_train)
     self.Y_test = self.convert_to_one_hot(self.Y_test)
-    sys.stderr = sys.__stderr__ # Enable stderr.
+    # sys.stderr = sys.__stderr__ # Enable stderr.
 
   # Convert labels to one-hot (10 x 1) vectors.
   def convert_to_one_hot(self, labels):
@@ -49,6 +51,10 @@ class CNN:
     self.X = np.empty(self.X_train[0].shape)
     self.Y = np.empty(self.Y_train[0].shape)
     self.X = np.expand_dims(self.X, axis=0)
+
+    # Learning rates
+    self.alpha = 1.0
+    self.batch_size = 10
     
     ###########################################
     #####      Convolutional Layer 1      #####
@@ -58,10 +64,12 @@ class CNN:
     K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
     self.K1 = self.initialize_uniformly(K1_shape, K1_bound)
     self.delta_K1 = np.zeros(self.K1.shape)
+    self.batch_delta_K1 = np.zeros(self.K1.shape)
 
     # 6 biases.
     self.B1 = np.zeros((6, 1))
     self.delta_B1 = np.zeros(self.B1.shape)
+    self.batch_delta_B1 = np.zeros(self.B1.shape)
 
     # 6 convolution outputs of size (24 x 24), before and after sigmoid.
     self.C1 = np.zeros((6, 24, 24))
@@ -84,10 +92,12 @@ class CNN:
     K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
     self.K2 = self.initialize_uniformly(K2_shape, K2_bound)
     self.delta_K2 = np.zeros(self.K2.shape)
+    self.batch_delta_K2 = np.zeros(self.K2.shape)
 
     # 12 biases.
     self.B2 = np.zeros((12, 1))
     self.delta_B2 = np.zeros(self.B2.shape)
+    self.batch_delta_B2 = np.zeros(self.B2.shape)
 
     # 12 convolution outputs of size (8 x 8), before and after sigmoid.
     self.C2 = np.zeros((12, 8, 8))
@@ -114,10 +124,12 @@ class CNN:
     W_bound = np.sqrt(6 / (192 + 10))
     self.W = self.initialize_uniformly(W_shape, W_bound)
     self.delta_W = np.zeros(self.W.shape)
+    self.batch_delta_W = np.zeros(self.W.shape)
 
     # 10 biases.
     self.B = np.zeros((10, 1))
     self.delta_B = np.zeros(self.B.shape)
+    self.batch_delta_B = np.zeros(self.B.shape)
 
     # 10 output classes, before and after sigmoid.
     self.Y_hat = np.zeros((10, 1))
@@ -127,6 +139,7 @@ class CNN:
 
     # Loss.
     self.L = 0.0
+    self.batch_L = 0.0
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UNIVERSAL FUNCTIONS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -343,6 +356,7 @@ class CNN:
     assert(truth.shape == prediction.shape)
 
     self.L = 0.5 * np.sum(np.square((truth - prediction)))
+    self.batch_L += self.L / self.batch_size
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FEEDFORWARD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -390,7 +404,6 @@ class CNN:
     #####          Loss Function          #####
     ###########################################
     self.loss(self.Y, self.Y_hat_sigma)
-    print(self.L)
 
   def back_propagation(self):
     ###########################################
@@ -447,6 +460,45 @@ class CNN:
     for p in range(self.delta_B1.shape[0]):
       self.delta_B1[p] = np.sum(self.delta_C1[p])
 
+    self.batch_delta_K1 += self.delta_K1 / self.batch_size
+    self.batch_delta_B1 += self.delta_B1 / self.batch_size
+    self.batch_delta_K2 += self.delta_K2 / self.batch_size
+    self.batch_delta_B2 += self.delta_B2 / self.batch_size
+    self.batch_delta_W  += self.delta_W  / self.batch_size
+    self.batch_delta_B  += self.delta_B  / self.batch_size
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UPDATING PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+  def update_parameters(self):
+    self.K1 -= self.alpha * self.batch_delta_K1
+    self.B1 -= self.alpha * self.batch_delta_B1
+    self.K2 -= self.alpha * self.batch_delta_K2
+    self.B2 -= self.alpha * self.batch_delta_B2
+    self.W  -= self.alpha * self.batch_delta_W
+    self.B  -= self.alpha * self.batch_delta_B
+
+    self.batch_delta_K1 = 0.0
+    self.batch_delta_B1 = 0.0
+    self.batch_delta_K2 = 0.0
+    self.batch_delta_B2 = 0.0
+    self.batch_delta_W  = 0.0
+    self.batch_delta_B  = 0.0
+    self.batch_L = 0.0
+
 myCNN = CNN()
-myCNN.feed_forward(myCNN.X_train[0], myCNN.Y_train[0])
-myCNN.back_propagation()
+for i in range(100):
+  print("Iteration ", i)
+  for t in range(myCNN.batch_size):
+    cur = i * myCNN.batch_size + t
+    myCNN.feed_forward(
+      myCNN.X_train[cur],
+      myCNN.Y_train[cur]
+    )
+    myCNN.back_propagation()
+  print(myCNN.batch_L)
+  print(myCNN.Y)
+  print(myCNN.Y_hat_sigma)
+  myCNN.update_parameters()
+  if (i % 10 == 0):
+    myCNN.alpha *= 0.5
