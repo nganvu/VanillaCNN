@@ -125,7 +125,7 @@ class CNN:
     self.delta_Y_hat_sigma = np.zeros(self.delta_Y_hat.shape)
 
     # Loss.
-    self.loss = 0.0
+    self.L = 0.0
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UNIVERSAL FUNCTIONS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -148,6 +148,7 @@ class CNN:
     num_K = (all_K.shape[0], all_K.shape[1])
     num_B = all_B.shape[0]
     num_O = all_O.shape[0]
+
     assert(num_I == num_K[0])
     assert(num_O == num_K[1] == num_B)
     assert(all_B.shape[1] == 1)
@@ -278,29 +279,39 @@ class CNN:
   def pooling(self, input_name, output_name):
 
     # Get input and output.
-    I = getattr(self, input_name)
-    O = getattr(self, output_name)
+    all_I = getattr(self, input_name)
+    all_O = getattr(self, output_name)
 
-    # Make sure the side length of output is half the side length of the input.
-    # Assume the side length of the input is even.
-    x_i, y_i = I.shape
-    x_o, y_o = O.shape
-    assert(x_i % 2 == 0 and y_i % 2 == 0)
-    assert(x_i == 2 * x_o)
-    assert(y_i == 2 * y_o)
+    num_I = all_I.shape[0]
+    num_O = all_O.shape[0]
+    assert(num_I == num_O)
 
-    # REFERENCE FORMULA: (12) + (16)
-    # Iterate through the output image.
-    for i in range(x_o):
-      for j in range(y_o):
-        O[i][j] = 0
-        # Iterate through the pooling patch.
-        for u in range(1):
-          for v in range(1):
-            O[i][j] += 0.25 * (in_mat[2*i + u][2*j + v])
+    for p in range(num_I):
+      I = all_I[p]
+      O = all_O[p]
+
+      # Ensure the side length of output is half the side length of the input.
+      # Assume the side length of the input is even.
+      x_i, y_i = I.shape
+      x_o, y_o = O.shape
+      assert(x_i % 2 == 0 and y_i % 2 == 0)
+      assert(x_i == 2 * x_o)
+      assert(y_i == 2 * y_o)
+
+      # REFERENCE FORMULA: (12) + (16)
+      # Iterate through the output image.
+      for i in range(x_o):
+        for j in range(y_o):
+          O[i][j] = 0
+          # Iterate through the pooling patch.
+          for u in range(1):
+            for v in range(1):
+              O[i][j] += 0.25 * (I[2*i + u][2*j + v])
+
+      all_O[p] = O
 
     # Update output.
-    setattr(self, output_name, O)
+    setattr(self, output_name, all_O)
 
   ###########################################
   #####          Vectorization          #####
@@ -385,46 +396,51 @@ class CNN:
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   def feed_forward(self, X, Y):
     assert(self.X[0].shape == X.shape)
+    self.X[0] = X
     assert(self.Y_hat.shape == Y.shape)
+    self.Y = Y
 
     ###########################################
     ######      Convolution Layer 1      ######
     ###########################################
-
     self.correlation("X", "K1", "B1", "C1")
     self.sigmoid("C1", "C1_sigma")
 
-    # ###########################################
-    # ######        Pooling Layer 1        ######
-    # ###########################################
-    # for i in range(S1.shape[0]):
-    #   S1[i] = pooling(C1[i], S1[i])
+    ###########################################
+    ######        Pooling Layer 1        ######
+    ###########################################
+    self.pooling("C1_sigma", "S1")
 
-    # ###########################################
-    # ######      Convolution Layer 2      ######
-    # ###########################################
-    # for i in range(C2.shape[0]):
-    #   temp = np.zeros(C2[i].shape)
-    #   for j in range(S1.shape[0]):
-    #     temp = correlation(S1[j], K2[j][i], temp)
-    #     C2[i] += temp
-    #   C2[i] = sigmoid(C2[i] + B2[i])
+    ###########################################
+    ######      Convolution Layer 2      ######
+    ###########################################
+    self.correlation("S1", "K2", "B2", "C2")
+    self.sigmoid("C2", "C2_sigma")
 
-    # ###########################################
-    # ######        Pooling Layer 2        ######
-    # ###########################################
-    # for i in range(S2.shape[0]):
-    #   S2[i] = pooling(C2[i], S2[i])
+    ###########################################
+    ######        Pooling Layer 2        ######
+    ###########################################
+    self.pooling("C2_sigma", "S2")
 
-    # ###########################################
-    # ######         Vectorization         ######
-    # ###########################################
-    # F = vectorize(S2)
+    ###########################################
+    ######         Vectorization         ######
+    ###########################################
+    self.vectorize("S2", "V")
 
-    # ###########################################
-    # ######     Fully Connected Layer     ######
-    # ###########################################
-    # y_hat = sigmoid(fully_connected(F, W, B))
+    ###########################################
+    ######     Fully Connected Layer     ######
+    ###########################################
+    self.fully_connected("V", "W", "B", "Y_hat")
+    self.sigmoid("Y_hat", "Y_hat_sigma")
+
+    ###########################################
+    #####          Loss Function          #####
+    ###########################################
+    self.loss("Y", "Y_hat_sigma", "L")
+
+    print(self.Y)
+    print(self.Y_hat_sigma)
+    print(self.L)
 
 myCNN = CNN()
 myCNN.feed_forward(myCNN.X_train[0], myCNN.Y_train[0])
