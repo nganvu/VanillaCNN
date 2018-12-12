@@ -349,19 +349,12 @@ class CNN:
   ###########################################
   #####          Loss Function          #####
   ###########################################
-  def loss(self, truth_name, prediction_name, loss_name):
-    # Get truth and prediction.
-    truth = getattr(self, truth_name)
-    prediction = getattr(self, prediction_name)
-    L = getattr(self, loss_name)
+  def loss(self, truth, prediction):
 
     # Verify the shapes are consistent.
     assert(truth.shape == prediction.shape)
 
-    L = 0.5 * np.sum(np.square((truth - prediction)))
-
-    # Update output.
-    setattr(self, loss_name, L)
+    self.L = 0.5 * np.sum(np.square((truth - prediction)))
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FEEDFORWARD ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -408,7 +401,7 @@ class CNN:
     ###########################################
     #####          Loss Function          #####
     ###########################################
-    self.loss("Y", "Y_hat_sigma", "L")
+    self.loss(self.Y, self.Y_hat_sigma)
     print(self.L)
 
   def back_propagation(self):
