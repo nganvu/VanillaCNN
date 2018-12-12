@@ -11,14 +11,12 @@ class CNN:
 
   # Load MNIST dataset.
   def load_MNIST(self):
-    # sys.stderr = open(os.devnull, 'w') # Disable stderr.
+    sys.stderr = open(os.devnull, 'w') # Disable stderr.
     from keras.datasets import mnist
     (self.X_train, self.Y_train), (self.X_test, self.Y_test) = mnist.load_data()
-    self.X_train = self.X_train.astype('float32') / 255
-    self.X_test = self.X_test.astype('float32') / 255
-    self.Y_train = self.convert_to_one_hot(self.Y_train)
-    self.Y_test = self.convert_to_one_hot(self.Y_test)
-    # sys.stderr = sys.__stderr__ # Enable stderr.
+    sys.stderr = sys.__stderr__ # Enable stderr.
+    self.X_train = self.X_train.astype('float32') / 255.0
+    self.X_test = self.X_test.astype('float32') / 255.0
 
   # Convert labels to one-hot (10 x 1) vectors.
   def convert_to_one_hot(self, labels):
@@ -49,12 +47,12 @@ class CNN:
 
     # Input (image of digits) and true output (label) holders.
     self.X = np.empty(self.X_train[0].shape)
-    self.Y = np.empty(self.Y_train[0].shape)
     self.X = np.expand_dims(self.X, axis=0)
+    self.Y = None
 
     # Learning rates
     self.alpha = 1.0
-    self.batch_size = 10
+    self.batch_size = 1
     
     ###########################################
     #####      Convolutional Layer 1      #####
@@ -132,10 +130,9 @@ class CNN:
     self.batch_delta_B = np.zeros(self.B.shape)
 
     # 10 output classes, before and after sigmoid.
-    self.Y_hat = np.zeros((10, 1))
-    self.Y_hat_sigma = np.zeros(self.Y_hat.shape)
-    self.delta_Y_hat = np.zeros(self.Y_hat.shape)
-    self.delta_Y_hat_sigma = np.zeros(self.delta_Y_hat.shape)
+    self.Z = np.zeros((10, 1))
+    self.delta_Z = np.zeros(self.Z.shape)
+    self.O = np.zeros(self.Z.shape)
 
     # Loss.
     self.L = 0.0
@@ -162,7 +159,7 @@ class CNN:
     # Iterate through output matrix.
     for i in range(x_o):
       for j in range(y_o):
-        O[i][j] = 0
+        O[i][j] = 0.0
         # Iterate through kernel.
         for u in range(x_k):
           for v in range(y_k):
@@ -216,7 +213,7 @@ class CNN:
     # Iterate through output matrix.
     for i in range(x_o):
       for j in range(y_o):
-        O[i][j] = 0
+        O[i][j] = 0.0
         # Iterate through kernel.
         for u in range(x_k):
           for v in range(y_k):
@@ -240,7 +237,7 @@ class CNN:
       temp_O = np.empty(all_O[p].shape)
       for q in range(num_I):
         self.convolution(all_I[p], all_K[p][q], temp_O)
-        all_O[p] += temp_O
+        all_O[p] = np.add(all_O[p], temp_O)
 
   ###########################################
   #####             Sigmoid             #####
@@ -251,7 +248,7 @@ class CNN:
     assert(O.shape == I.shape)
 
     # REFERENCE FORMULA: (7)
-    np.copyto(O, 1 / (1 + np.exp(-I)))
+    np.copyto(O, 1.0 / (1.0 + np.exp(-I)))
 
   ###########################################
   #####             Pooling             #####
@@ -270,7 +267,7 @@ class CNN:
     # Iterate through the output image.
     for i in range(x_o):
       for j in range(y_o):
-        O[i][j] = 0
+        O[i][j] = 0.0
         # Iterate through the pooling patch.
         for u in range(1):
           for v in range(1):
@@ -345,17 +342,14 @@ class CNN:
     assert(O.shape[1] == I.shape[1] == B.shape[1])
     assert(W.shape[1] == I.shape[0])
 
-    np.copyto(O, np.dot(W, I) + B)
+    np.copyto(O, np.matmul(W, I) + B)
 
   ###########################################
   #####          Loss Function          #####
   ###########################################
-  def loss(self, truth, prediction):
+  def loss(self):
 
-    # Verify the shapes are consistent.
-    assert(truth.shape == prediction.shape)
-
-    self.L = 0.5 * np.sum(np.square((truth - prediction)))
+    self.L = -np.log(self.O[self.Y])
     self.batch_L += self.L / self.batch_size
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -363,8 +357,7 @@ class CNN:
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   def feed_forward(self, X, Y):
     assert(self.X[0].shape == X.shape)
-    self.X[0] = X
-    assert(self.Y_hat.shape == Y.shape)
+    np.copyto(self.X[0], X)
     self.Y = Y
 
     ###########################################
@@ -397,34 +390,32 @@ class CNN:
     ###########################################
     ######     Fully Connected Layer     ######
     ###########################################
-    self.fully_connected(self.V, self.W, self.B, self.Y_hat)
-    self.sigmoid(self.Y_hat, self.Y_hat_sigma)
+    self.fully_connected(self.V, self.W, self.B, self.Z)
+    self.Z = np.exp(self.Z)
+    self.O = self.Z / np.sum(self.Z)
 
     ###########################################
     #####          Loss Function          #####
     ###########################################
-    self.loss(self.Y, self.Y_hat_sigma)
+    self.loss()
 
   def back_propagation(self):
     ###########################################
     #####          Loss Function          #####
     ###########################################
-    self.delta_Y_hat_sigma = self.Y_hat_sigma - self.Y
-    self.delta_Y_hat = np.multiply(
-      self.delta_Y_hat_sigma,
-      np.multiply(self.Y_hat_sigma, 1 - self.Y_hat_sigma)
-    )
+    np.copyto(self.delta_Z, self.O)
+    self.delta_Z[self.Y] -= 1.0
 
     ###########################################
     ######     Fully Connected Layer     ######
     ###########################################
-    self.delta_W = self.delta_Y_hat.dot(self.V.T)
-    self.delta_B = self.delta_Y_hat
+    self.delta_W = np.matmul(self.delta_Z, self.V.T)
+    np.copyto(self.delta_B, self.delta_Z)
 
     ###########################################
     ######         Vectorization         ######
     ###########################################
-    self.delta_V = self.W.T.dot(self.delta_Y_hat)
+    self.delta_V = np.matmul(self.W.T, self.delta_Z)
 
     ###########################################
     ######        Pooling Layer 2        ######
@@ -471,6 +462,10 @@ class CNN:
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UPDATING PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   def update_parameters(self):
+
+    # print("delta_K1", self.batch_delta_K1)
+    # print("delta_K2", self.batch_delta_K2)
+    # print("delta_W", self.batch_delta_W)
     self.K1 -= self.alpha * self.batch_delta_K1
     self.B1 -= self.alpha * self.batch_delta_B1
     self.K2 -= self.alpha * self.batch_delta_K2
@@ -478,17 +473,30 @@ class CNN:
     self.W  -= self.alpha * self.batch_delta_W
     self.B  -= self.alpha * self.batch_delta_B
 
-    self.batch_delta_K1 = 0.0
-    self.batch_delta_B1 = 0.0
-    self.batch_delta_K2 = 0.0
-    self.batch_delta_B2 = 0.0
-    self.batch_delta_W  = 0.0
-    self.batch_delta_B  = 0.0
+    # print(self.batch_delta_K1.shape)
+    # print(self.K1.shape)
+    # print(self.batch_delta_B1.shape)
+    # print(self.B1.shape)
+    # print(self.batch_delta_K2.shape)
+    # print(self.K2.shape)
+    # print(self.batch_delta_B2.shape)
+    # print(self.B2.shape)
+    # print(self.batch_delta_W.shape)
+    # print(self.W.shape)
+    # print(self.batch_delta_B.shape)
+    # print(self.B.shape)
+
+    self.batch_delta_K1.fill(0.0)
+    self.batch_delta_B1.fill(0.0)
+    self.batch_delta_K2.fill(0.0)
+    self.batch_delta_B2.fill(0.0)
+    self.batch_delta_W.fill(0.0)
+    self.batch_delta_B.fill(0.0)
     self.batch_L = 0.0
 
 myCNN = CNN()
 for i in range(100):
-  print("Iteration ", i)
+  print("Iteration", i)
   for t in range(myCNN.batch_size):
     cur = i * myCNN.batch_size + t
     myCNN.feed_forward(
@@ -496,9 +504,11 @@ for i in range(100):
       myCNN.Y_train[cur]
     )
     myCNN.back_propagation()
-  print(myCNN.batch_L)
+  print("Batch loss:", myCNN.batch_L)
   print(myCNN.Y)
-  print(myCNN.Y_hat_sigma)
+  print(myCNN.O)
   myCNN.update_parameters()
-  if (i % 10 == 0):
-    myCNN.alpha *= 0.5
+  print("W", myCNN.W)
+  print("W", myCNN.delta_W)
+  # if (i % 10 == 0):
+  #   myCNN.alpha *= 0.5
