@@ -337,22 +337,14 @@ class CNN:
   ###########################################
   #####         Fully Connected         #####
   ###########################################
-  def fully_connected(self, input_name, weight_name, bias_name, output_name):
-    # Get input, weight, bias, and output.
-    I = getattr(self, input_name)
-    W = getattr(self, weight_name)
-    B = getattr(self, bias_name)
-    O = getattr(self, output_name)
+  def fully_connected(self, I, W, B, O):
 
     # Verify the shapes are consistent.
     assert(O.shape[0] == W.shape[0] == B.shape[0])
     assert(O.shape[1] == I.shape[1] == B.shape[1])
     assert(W.shape[1] == I.shape[0])
 
-    O = np.dot(W, I) + B
-
-    # Update output.
-    setattr(self, output_name, O)
+    np.copyto(O, np.dot(W, I) + B)
 
   ###########################################
   #####          Loss Function          #####
@@ -410,7 +402,7 @@ class CNN:
     ###########################################
     ######     Fully Connected Layer     ######
     ###########################################
-    self.fully_connected("V", "W", "B", "Y_hat")
+    self.fully_connected(self.V, self.W, self.B, self.Y_hat)
     self.sigmoid(self.Y_hat, self.Y_hat_sigma)
 
     ###########################################
