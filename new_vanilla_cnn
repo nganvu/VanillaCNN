@@ -54,19 +54,24 @@ class CNN:
     K1_shape = (1, 6, 5, 5)
     K1_bound = np.sqrt(6 / ((1 + 6) * (5 * 5)))
     self.K1 = self.initialize_uniformly(K1_shape, K1_bound)
+    self.delta_K1 = np.zeros(self.K1.shape)
 
     # 6 biases.
     self.B1 = np.zeros((6, 1))
+    self.delta_B1 = np.zeros(self.B1.shape)
 
     # 6 convolution outputs of size (24 x 24), before and after sigmoid.
     self.C1 = np.zeros((6, 24, 24))
     self.C1_sigma = np.zeros(self.C1.shape)
+    self.delta_C1 = np.zeros(self.C1.shape)
+    self.delta_C1_sigma = np.zeros(self.C1_sigma.shape)
 
     #################################
     #####    Pooling Layer 1    #####
     #################################
     # 6 sampling outputs of size (12 x 12).
     self.S1 = np.zeros((6, 12, 12))
+    self.delta_S1 = np.zeros(self.S1.shape)
 
     #################################
     ##### Convolutional Layer 2 #####
@@ -75,36 +80,47 @@ class CNN:
     K2_shape = (6, 12, 5, 5)
     K2_bound = np.sqrt(6 / ((6 + 12) * (5 * 5)))
     self.K2 = self.initialize_uniformly(K2_shape, K2_bound)
+    self.delta_K2 = np.zeros(self.K2.shape)
 
     # 12 biases.
     self.B2 = np.zeros((12, 1))
+    self.delta_B2 = np.zeros(self.B2.shape)
 
     # 12 convolution outputs of size (8 x 8), before and after sigmoid.
     self.C2 = np.zeros((12, 8, 8))
     self.C2_sigma = np.zeros(self.C2.shape)
+    self.delta_C2 = np.zeros(self.C2.shape)
+    self.delta_C2_sigma = np.zeros(self.C2_sigma.shape)
 
     #################################
     #####    Pooling Layer 2    #####
     #################################
     # 12 sampling outputs of size (4 x 4).
     self.S2 = np.zeros((12, 4, 4))
+    self.delta_S2 = np.zeros(self.S2.shape)
 
     #################################
     ##### Fully Connected Layer #####
     #################################
     # Vectorization of 12 matrices of size (4 x 4) to a vector of size 192.
     self.V = np.zeros((192, 1))
+    self.delta_V = np.zeros(self.V.shape)
 
     # 10 weights of size 192.
     W_shape = (10, 192)
     W_bound = np.sqrt(6 / (192 + 10))
     self.W = self.initialize_uniformly(W_shape, W_bound)
+    self.delta_W = np.zeros(self.W.shape)
 
     # 10 biases.
     self.B = np.zeros((10, 1))
+    self.delta_B = np.zeros(self.B.shape)
 
-    # 10 output classes.
+    # 10 output classes, before and after sigmoid.
     self.Y = np.zeros((10, 1))
+    self.Y_sigma = np.zeros(self.Y.shape)
+    self.delta_Y = np.zeros(self.Y.shape)
+    self.delta_Y_sigma = np.zeros(self.delta_Y.shape)
 
     # Loss.
     self.loss = 0.0
