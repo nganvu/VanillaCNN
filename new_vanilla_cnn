@@ -46,8 +46,8 @@ class CNN:
     self.load_MNIST()
 
     # Input (image of digits) and true output (label) holders.
-    self.X = np.zeros(self.X_train[0].shape)
-    self.Y = np.zeros(self.Y_train[0].shape)
+    self.X = np.empty(self.X_train[0].shape)
+    self.Y = np.empty(self.Y_train[0].shape)
     self.X = np.expand_dims(self.X, axis=0)
     
     ###########################################
@@ -127,11 +127,6 @@ class CNN:
 
     # Loss.
     self.L = 0.0
-
-    self.foo = np.zeros((10, 1))
-
-  def set_foo(self, param):
-    param[3] = 1
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UNIVERSAL FUNCTIONS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -232,7 +227,6 @@ class CNN:
       temp_O = np.empty(all_O[p].shape)
       for q in range(num_I):
         self.convolution(all_I[p], all_K[p][q], temp_O)
-        assert(all_O[p].shape == temp_O.shape)
         all_O[p] += temp_O
 
   ###########################################
@@ -434,12 +428,24 @@ class CNN:
     )
     self.correlation_wrapper_backprop(self.S1, self.delta_C2, self.delta_K2)
     for q in range(self.delta_B2.shape[0]):
-      self.delta_B2[q] = np.sum(self.delta_C2_sigma[q])
+      self.delta_B2[q] = np.sum(self.delta_C2[q])
 
     ###########################################
     ######        Pooling Layer 1        ######
     ###########################################
     self.convolution_wrapper_backprop(self.delta_C2, self.K2, self.delta_S1)
+
+    ###########################################
+    ######      Convolution Layer 2      ######
+    ###########################################
+    self.unpooling_wrapper(self.delta_S1, self.delta_C1_sigma)
+    self.delta_C1 = np.multiply(
+      self.delta_C1_sigma,
+      np.multiply(self.C1_sigma, 1 - self.C1_sigma)
+    )
+    self.correlation_wrapper_backprop(self.X, self.delta_C1, self.delta_K1)
+    for p in range(self.delta_B1.shape[0]):
+      self.delta_B1[p] = np.sum(self.delta_C1[p])
 
 myCNN = CNN()
 myCNN.feed_forward(myCNN.X_train[0], myCNN.Y_train[0])
