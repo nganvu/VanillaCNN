@@ -13,9 +13,9 @@ class CNN:
   def load_MNIST(self):
     sys.stderr = open(os.devnull, 'w') # Disable stderr.
     from keras.datasets import mnist
-    (self.x_train, self.y_train), (self.x_test, self.y_test) = mnist.load_data()
-    self.y_train = self.convert_to_one_hot(self.y_train)
-    self.y_test = self.convert_to_one_hot(self.y_test)
+    (self.X_train, self.Y_train), (self.X_test, self.Y_test) = mnist.load_data()
+    self.Y_train = self.convert_to_one_hot(self.Y_train)
+    self.Y_test = self.convert_to_one_hot(self.Y_test)
     sys.stderr = sys.__stderr__ # Enable stderr.
 
   # Convert labels to one-hot (10 x 1) vectors.
@@ -38,14 +38,14 @@ class CNN:
     #################################
     ########## Load Inputs ##########
     #################################
-    self.x_train = None
-    self.y_train = None
-    self.x_test = None
-    self.y_test = None
+    self.X_train = None
+    self.Y_train = None
+    self.X_test = None
+    self.Y_test = None
     self.load_MNIST()
 
     # Input holder has the shape of one data point from training/testing data.
-    self.X = np.zeros(self.x_train[0].shape)
+    self.X = np.zeros(self.X_train[0].shape)
     
     #################################
     ##### Convolutional Layer 1 #####
@@ -106,7 +106,8 @@ class CNN:
     # 10 output classes.
     self.Y = np.zeros((10, 1))
 
-    self.foo = 1
+    # Loss.
+    self.loss = 0.0
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ UNIVERSAL FUNCTIONS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -119,7 +120,7 @@ class CNN:
 
   def correlation(self, input_name, kernel_name, output_name):
 
-    # Get input, kernel, and output matrices.
+    # Get input, kernel, and output.
     I = getattr(self, input_name)
     K = getattr(self, kernel_name)
     O = getattr(self, output_name)
@@ -152,7 +153,7 @@ class CNN:
 
   def convolution(self, input_name, kernel_name, output_name):
 
-    # Get input, kernel, and output matrices.
+    # Get input, kernel, and output.
     I = getattr(self, input_name)
     K = getattr(self, kernel_name)
     O = getattr(self, output_name)
@@ -188,9 +189,11 @@ class CNN:
   
   def sigmoid(self, input_name, output_name):
 
-    # Get input and output matrices.
+    # Get input and output.
     I = getattr(self, input_name)
     O = getattr(self, output_name)
+
+    # Verify the shapes are consistent.
     assert(O.shape == I.shape)
 
     # REFERENCE FORMULA: (7)
@@ -202,9 +205,11 @@ class CNN:
   # REFERENCE FORMULA: (8)
   def sigmoid_derivative(self, input_name, output_name):
     
-    # Get input and output matrices.
+    # Get input and output.
     I = getattr(self, input_name)
     O = getattr(self, output_name)
+
+    # Verify the shapes are consistent.
     assert(O.shape == I.shape)
 
     # REFERENCE FORMULA: (8)
@@ -218,7 +223,7 @@ class CNN:
   #################################
   def pooling(self, input_name, output_name):
 
-    # Get input and output matrices.
+    # Get input and output.
     I = getattr(self, input_name)
     O = getattr(self, output_name)
 
@@ -248,7 +253,7 @@ class CNN:
   #################################
   def vectorize(self, input_name, output_name):
 
-    # Get input and output matrices.
+    # Get input and output.
     I = getattr(self, input_name)
     O = getattr(self, output_name)
 
@@ -267,7 +272,7 @@ class CNN:
 
   def unvectorize(self, input_name, output_name):
 
-    # Get input and output matrices.
+    # Get input and output.
     I = getattr(self, input_name)
     O = getattr(self, output_name)
 
@@ -284,9 +289,51 @@ class CNN:
     # Update output.
     setattr(self, output_name, O)
 
+  #################################
+  #####    Fully Connected    #####
+  #################################
+  def fully_connected(self, input_name, weight_name, bias_name, output_name):
+    # Get input, weight, bias, and output.
+    I = getattr(self, input_name)
+    W = getattr(self, weight_name)
+    B = getattr(self, bias_name)
+    O = getattr(self, output_name)
+
+    # Verify the shapes are consistent.
+    assert(O.shape[0] == W.shape[0] == B.shape[0])
+    assert(O.shape[1] == I.shape[1] == B.shape[1])
+    assert(W.shape[1] == I.shape[0])
+
+    O = np.dot(W, I) + B
+
+    # Update output.
+    setattr(self, output_name, O)
+
+  #################################
+  #####     Loss Function     #####
+  #################################
+  def loss(self, truth_name, prediction_name, loss_name):
+    # Get truth and prediction.
+    truth = getattr(self, truth_name)
+    prediction = getattr(self, prediction_name)
+    L = getattr(self, loss_name)
+
+    # Verify the shapes are consistent.
+    assert(truth.shape == prediction.shape)
+
+    L = 0.5 * np.sum(np.square((truth - prediction)))
+
+    # Update output.
+    setattr(self, loss_name, L)
+
+print("Fully connected test")
+myCNN = CNN()
+myCNN.V = np.random.rand(*myCNN.V.shape)
+myCNN.B = np.random.rand(*myCNN.B.shape)
+myCNN.fully_connected("V", "W", "B", "Y")
+print(myCNN.Y)
 
 print("Vectorize test")
-myCNN = CNN()
 myCNN.S2 = np.random.rand(*myCNN.S2.shape)
 old_S2 = myCNN.S2
 myCNN.vectorize("S2", "V")
