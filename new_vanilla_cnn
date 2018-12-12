@@ -160,7 +160,7 @@ class CNN:
           for v in range(y_k):
             O[i][j] += I[i + u][j + v] * K[u][v]
 
-  def correlation_ff(self, all_I, all_K, all_B, all_O):
+  def correlation_wrapper_ff(self, all_I, all_K, all_B, all_O):
     num_I = all_I.shape[0]
     num_K = (all_K.shape[0], all_K.shape[1])
     num_B = all_B.shape[0]
@@ -177,7 +177,7 @@ class CNN:
         # Add bias.
         all_O[q] += all_B[q]
 
-  def correlation_bp(self, all_I, all_K, all_O):
+  def correlation_wrapper_bp(self, all_I, all_K, all_O):
     num_I = all_I.shape[0]
     num_K = all_K.shape[0]
     num_O = (all_O.shape[0], all_O.shape[1])
@@ -255,73 +255,57 @@ class CNN:
   ###########################################
   #####             Pooling             #####
   ###########################################
-  def pooling(self, input_name, output_name):
+  def pooling(self, I, O):
 
-    # Get input and output.
-    all_I = getattr(self, input_name)
-    all_O = getattr(self, output_name)
+    # Ensure the side length of output is half the side length of the input.
+    # Assume the side length of the input is even.
+    x_i, y_i = I.shape
+    x_o, y_o = O.shape
+    assert(x_i % 2 == 0 and y_i % 2 == 0)
+    assert(x_i == 2 * x_o)
+    assert(y_i == 2 * y_o)
 
-    num_I = all_I.shape[0]
-    num_O = all_O.shape[0]
-    assert(num_I == num_O)
+    # REFERENCE FORMULA: (12) + (16)
+    # Iterate through the output image.
+    for i in range(x_o):
+      for j in range(y_o):
+        O[i][j] = 0
+        # Iterate through the pooling patch.
+        for u in range(1):
+          for v in range(1):
+            O[i][j] += 0.25 * (I[2*i + u][2*j + v])
 
-    for p in range(num_I):
-      I = all_I[p]
-      O = all_O[p]
-
-      # Ensure the side length of output is half the side length of the input.
-      # Assume the side length of the input is even.
-      x_i, y_i = I.shape
-      x_o, y_o = O.shape
-      assert(x_i % 2 == 0 and y_i % 2 == 0)
-      assert(x_i == 2 * x_o)
-      assert(y_i == 2 * y_o)
-
-      # REFERENCE FORMULA: (12) + (16)
-      # Iterate through the output image.
-      for i in range(x_o):
-        for j in range(y_o):
-          O[i][j] = 0
-          # Iterate through the pooling patch.
-          for u in range(1):
-            for v in range(1):
-              O[i][j] += 0.25 * (I[2*i + u][2*j + v])
-
-      all_O[p] = O
-
-    # Update output.
-    setattr(self, output_name, all_O)
-
-  def unpooling(self, input_name, output_name):
-
-    # Get input and output.
-    all_I = getattr(self, input_name)
-    all_O = getattr(self, output_name)
+  def pooling_wrapper(self, all_I, all_O):
 
     num_I = all_I.shape[0]
     num_O = all_O.shape[0]
     assert(num_I == num_O)
 
     for p in range(num_I):
-      I = all_I[p]
-      O = all_O[p]
+      self.pooling(all_I[p], all_O[p])
 
-      # Ensure the side length of output is twice the side length of the input.
-      x_i, y_i = I.shape
-      x_o, y_o = O.shape
-      assert(x_o == 2 * x_i)
-      assert(y_o == 2 * y_i)
+  def unpooling(self, I, O):
 
-      # REFERENCE FORMULA: (55) + (83)
-      # Iterate through the output image.
-      for i in range(x_o):
-        for j in range(y_o):
-          O[i][j] = 0.25 * I[int(i / 2)][int(j / 2)]
+    # Ensure the side length of output is twice the side length of the input.
+    x_i, y_i = I.shape
+    x_o, y_o = O.shape
+    assert(x_o == 2 * x_i)
+    assert(y_o == 2 * y_i)
 
-      all_O[p] = O
+    # REFERENCE FORMULA: (55) + (83)
+    # Iterate through the output image.
+    for i in range(x_o):
+      for j in range(y_o):
+        O[i][j] = 0.25 * I[int(i / 2)][int(j / 2)]
 
-    # Update output.
-    setattr(self, output_name, all_O)
+  def unpooling_wrapper(self, all_I, all_O):
+
+    num_I = all_I.shape[0]
+    num_O = all_O.shape[0]
+    assert(num_I == num_O)
+
+    for p in range(num_I):
+      self.unpooling(all_I[p], all_O[p])
 
   ###########################################
   #####          Vectorization          #####
@@ -413,24 +397,24 @@ class CNN:
     ###########################################
     ######      Convolution Layer 1      ######
     ###########################################
-    self.correlation_ff(self.X, self.K1, self.B1, self.C1)
+    self.correlation_wrapper_ff(self.X, self.K1, self.B1, self.C1)
     self.sigmoid(self.C1, self.C1_sigma)
 
     ###########################################
     ######        Pooling Layer 1        ######
     ###########################################
-    self.pooling("C1_sigma", "S1")
+    self.pooling_wrapper(self.C1_sigma, self.S1)
 
     ###########################################
     ######      Convolution Layer 2      ######
     ###########################################
-    self.correlation_ff(self.S1, self.K2, self.B2, self.C2)
+    self.correlation_wrapper_ff(self.S1, self.K2, self.B2, self.C2)
     self.sigmoid(self.C2, self.C2_sigma)
 
     ###########################################
     ######        Pooling Layer 2        ######
     ###########################################
-    self.pooling("C2_sigma", "S2")
+    self.pooling_wrapper(self.C2_sigma, self.S2)
 
     ###########################################
     ######         Vectorization         ######
@@ -478,12 +462,12 @@ class CNN:
     ###########################################
     ######      Convolution Layer 2      ######
     ###########################################
-    self.unpooling("delta_S2", "delta_C2_sigma")
+    self.unpooling_wrapper(self.delta_S2, self.delta_C2_sigma)
     self.delta_C2 = np.multiply(
       self.delta_C2_sigma,
       np.multiply(self.C2_sigma, 1 - self.C2_sigma)
     )
-    self.correlation_bp(self.S1, self.delta_C2, self.delta_K2)
+    self.correlation_wrapper_bp(self.S1, self.delta_C2, self.delta_K2)
     
 
 myCNN = CNN()
