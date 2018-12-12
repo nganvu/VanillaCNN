@@ -310,11 +310,7 @@ class CNN:
   ###########################################
   #####          Vectorization          #####
   ###########################################
-  def vectorize(self, input_name, output_name):
-
-    # Get input and output.
-    I = getattr(self, input_name)
-    O = getattr(self, output_name)
+  def vectorize(self, I, O):
 
     # Verify that the output is a vector.
     assert(len(O.shape) == 2)
@@ -324,16 +320,9 @@ class CNN:
     # length of the output vector.
     assert(np.prod(I.shape) == O.shape[0])
 
-    O = I.reshape(O.shape)
+    np.copyto(O, I.reshape(O.shape))
 
-    # Update output.
-    setattr(self, output_name, O)
-
-  def unvectorize(self, input_name, output_name):
-
-    # Get input and output.
-    I = getattr(self, input_name)
-    O = getattr(self, output_name)
+  def unvectorize(self, I, O):
 
     # Verify that the input is a vector.
     assert(len(I.shape) == 2)
@@ -343,10 +332,7 @@ class CNN:
     # length of the input vector.
     assert(np.prod(O.shape) == I.shape[0])
 
-    O = I.reshape(O.shape)
-
-    # Update output.
-    setattr(self, output_name, O)
+    np.copyto(O, I.reshape(O.shape))
 
   ###########################################
   #####         Fully Connected         #####
@@ -419,7 +405,7 @@ class CNN:
     ###########################################
     ######         Vectorization         ######
     ###########################################
-    self.vectorize("S2", "V")
+    self.vectorize(self.S2, self.V)
 
     ###########################################
     ######     Fully Connected Layer     ######
@@ -457,7 +443,7 @@ class CNN:
     ###########################################
     ######        Pooling Layer 2        ######
     ###########################################
-    self.unvectorize("delta_V", "delta_S2")
+    self.unvectorize(self.delta_V, self.delta_S2)
 
     ###########################################
     ######      Convolution Layer 2      ######
