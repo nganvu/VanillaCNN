@@ -2,4 +2,14 @@
 
 CNN for MNIST from scratch using only numpy.
 
-Based on [Derivation of Backpropagation in Convolutional Neural Network (CNN)](https://pdfs.semanticscholar.org/5d79/11c93ddcb34cac088d99bd0cae9124e5dcd1.pdf) (2016) by Zhifei Zhang.
+Read the paper [here](https://github.com/nganvu/VanillaCNN/blob/master/paper.pdf)! (Updated 12/12/2018)
+
+To run my implementation:
+```
+./vanilla_cnn
+```
+
+To run the Keras equivalence:
+```
+./keras_cnn
+```
