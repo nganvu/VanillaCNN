@@ -19,6 +19,10 @@ To run the Keras equivalence:
 ./keras_cnn
 ```
 
+Look, the loss is actually decreasing!
+
+<img src="https://github.com/nganvu/VanillaCNN/blob/master/screenshot.png" width="360">
+
 ### To-dos
 * Parallelize the computation of individual training data points, as they are completely independent of one another.
 * Replace the sigmoid function in the Fully Connected Layer with the softmax function, which is often used for categorical predictions like with MNIST.
