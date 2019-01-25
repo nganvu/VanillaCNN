@@ -21,7 +21,7 @@ To run the Keras equivalence:
 
 Look, the loss is actually decreasing!
 
-<img src="https://github.com/nganvu/VanillaCNN/blob/master/training_screenshot.png" width="360">
+<img src="https://github.com/nganvu/VanillaCNN/blob/master/screenshot.png" width="360">
 
 After 3 days of training (I haven't done any performance optimization), it reached ~76.67% of accuracy, much higher than the 10% of accuracy of random guess.
 
