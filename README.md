@@ -27,6 +27,8 @@ After 3 days of training (I haven't done any performance optimization), it reach
 
 <img src="https://github.com/nganvu/VanillaCNN/blob/master/result_screenshot.png" width="360">
 
+It seems that the loss fluctuates a lot at the end of training. This suggests that I should dynamically adjust learning rate over time instead of keeping it constant.
+
 ### To-dos
 * Parallelize the computation of individual training data points, as they are completely independent of one another.
 * Replace the sigmoid function in the Fully Connected Layer with the softmax function, which is often used for categorical predictions like with MNIST.
